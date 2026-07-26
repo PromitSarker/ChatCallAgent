@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, MessageSquarePlus, MessageSquare, Paperclip, Loader2, Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { AudioQueue } from './utils/audioQueue';
 
 const generateUUID = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -15,16 +16,25 @@ function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isVoiceMode, setIsVoiceMode] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  
+  // Voice call states
+  const [isCallActive, setIsCallActive] = useState(false);
+  
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  
+  // Live voice refs
+  const wsRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const processorRef = useRef(null);
+  const audioQueueRef = useRef(null);
 
   useEffect(() => {
-    // Generate a new session ID when the app loads
     setConversationId(generateUUID());
+    return () => {
+      endCall();
+    };
   }, []);
 
   const scrollToBottom = () => {
@@ -36,11 +46,15 @@ function App() {
   }, [messages, isLoading]);
 
   const handleNewChat = () => {
+    if (isCallActive) endCall();
     setConversationId(generateUUID());
     setMessages([]);
     setInput('');
   };
 
+  // ----------------------------------------------------
+  // Text Chat Logic
+  // ----------------------------------------------------
   const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -53,138 +67,16 @@ function App() {
     try {
       const response = await fetch(`/api/chat/${conversationId}/message`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMessage.content }),
       });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData?.detail?.message || errData?.message || `HTTP ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error('Network response was not ok');
       const data = await response.json();
-      
-      const assistantMessage = { 
-        role: 'assistant', 
-        content: data.assistant_response 
-      };
-      
-      setMessages((prev) => [...prev, assistantMessage]);
-      
-      // If in voice mode, speak the response
-      if (isVoiceMode) {
-        playTTS(data.assistant_response);
-      }
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.assistant_response }]);
     } catch (error) {
       console.error('Error sending message:', error);
-      const errorMessage = { 
-        role: 'assistant', 
-        content: `Sorry, I encountered an error: ${error.message}` 
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-      if (isVoiceMode) playTTS(errorMessage.content);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const playTTS = (text) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const cleanText = text.replace(/[*#_`~]/g, '');
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    const voices = window.speechSynthesis.getVoices();
-    const englishVoices = voices.filter(v => v.lang.startsWith('en'));
-    const goodVoice = englishVoices.find(v => v.name.includes('Google') || v.name.includes('Female')) || englishVoices[0] || voices[0];
-    if(goodVoice) utterance.voice = goodVoice;
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const toggleVoiceMode = () => {
-    setIsVoiceMode(!isVoiceMode);
-    if (isRecording) stopRecording();
-    window.speechSynthesis.cancel();
-  };
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-
-      mediaRecorderRef.current.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
-      mediaRecorderRef.current.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
-        await processAudio(audioBlob);
-      };
-
-      window.speechSynthesis.cancel(); // Stop AI speaking when user starts
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Microphone access error", err);
-      alert("Microphone access denied or unavailable.");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    setIsRecording(true); // visual cue until processing finishes
-  };
-
-  const processAudio = async (audioBlob) => {
-    setIsLoading(true);
-    setIsRecording(false);
-    try {
-      const formData = new FormData();
-      formData.append('file', audioBlob, 'audio.webm');
-      
-      const sttResponse = await fetch('/api/voice/transcribe', {
-        method: 'POST',
-        body: formData
-      });
-      if (!sttResponse.ok) {
-        const errData = await sttResponse.json().catch(() => ({}));
-        throw new Error(errData?.detail?.message || errData?.message || `Transcription failed: HTTP ${sttResponse.status}`);
-      }
-      const { text } = await sttResponse.json();
-      
-      if (!text || text.trim().length === 0) {
-        setIsLoading(false);
-        return;
-      }
-      
-      const userMessage = { role: 'user', content: text };
-      setMessages((prev) => [...prev, userMessage]);
-      
-      const chatResponse = await fetch(`/api/chat/${conversationId}/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
-      });
-      
-      if (!chatResponse.ok) {
-        const errData = await chatResponse.json().catch(() => ({}));
-        throw new Error(errData?.detail?.message || errData?.message || `Chat failed: HTTP ${chatResponse.status}`);
-      }
-      const chatData = await chatResponse.json();
-      
-      setMessages((prev) => [...prev, { role: 'assistant', content: chatData.assistant_response }]);
-      if (isVoiceMode) playTTS(chatData.assistant_response);
-      
-    } catch (err) {
-      console.error(err);
-      const errMsg = `Sorry, voice processing failed: ${err.message}`;
-      setMessages((prev) => [...prev, { role: 'assistant', content: errMsg }]);
-      if (isVoiceMode) playTTS(errMsg);
+      setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${error.message}` }]);
     } finally {
       setIsLoading(false);
     }
@@ -199,47 +91,163 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData?.detail?.message || errData?.message || `HTTP ${response.status}`);
-      }
-      
+      const response = await fetch('/api/upload', { method: 'POST', body: formData });
+      if (!response.ok) throw new Error('Upload failed');
       const data = await response.json();
       
-      // Auto-send a message with the file URL
       const fileMessage = `Here is my document: ${data.url}`;
-      
-      const userMessage = { role: 'user', content: fileMessage };
-      setMessages((prev) => [...prev, userMessage]);
+      setMessages((prev) => [...prev, { role: 'user', content: fileMessage }]);
       setIsLoading(true);
 
       const chatResponse = await fetch(`/api/chat/${conversationId}/message`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: fileMessage }),
       });
-
-      if (!chatResponse.ok) {
-        const errData = await chatResponse.json().catch(() => ({}));
-        throw new Error(errData?.detail?.message || errData?.message || `HTTP ${chatResponse.status}`);
-      }
+      if (!chatResponse.ok) throw new Error('Chat failed');
       const chatData = await chatResponse.json();
-      
       setMessages((prev) => [...prev, { role: 'assistant', content: chatData.assistant_response }]);
     } catch (error) {
       console.error('Error uploading file:', error);
-      setMessages((prev) => [...prev, { role: 'assistant', content: `Sorry, I encountered an error uploading your file: ${error.message}` }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: `Upload error: ${error.message}` }]);
     } finally {
       setIsUploading(false);
       setIsLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // ----------------------------------------------------
+  // Voice Live Call Logic
+  // ----------------------------------------------------
+  const toggleCall = () => {
+    if (isCallActive) {
+      endCall();
+    } else {
+      startCall();
+    }
+  };
+
+  const startCall = async () => {
+    try {
+      // 1. Get Microphone
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+      mediaStreamRef.current = stream;
+
+      // 2. Initialize Audio Queue (for playback)
+      const audioQueue = new AudioQueue(24000);
+      await audioQueue.init();
+      audioQueueRef.current = audioQueue;
+
+      // 3. Connect WebSocket
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/api/voice/ws/${conversationId}`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setIsCallActive(true);
+        console.log("Voice WS connected");
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.interrupted) {
+          audioQueue.stop(); // Stop current playback on barge-in
+        }
+        if (data.audioB64) {
+          audioQueue.addAudioFromBase64(data.audioB64);
+        }
+        if (data.text) {
+          setMessages(prev => {
+            const last = prev[prev.length - 1];
+            // If the last message is assistant, append to it (streaming text)
+            // Or just add new message
+            if (last && last.role === 'assistant') {
+              const updated = [...prev];
+              updated[updated.length - 1] = { ...last, content: last.content + ' ' + data.text };
+              return updated;
+            } else {
+              return [...prev, { role: 'assistant', content: data.text }];
+            }
+          });
+        }
+      };
+
+      ws.onclose = () => {
+        console.log("Voice WS closed");
+        endCall();
+      };
+
+      // 4. Record and send audio
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      audioContextRef.current = audioContext;
+      const source = audioContext.createMediaStreamSource(stream);
+      
+      // ScriptProcessor is deprecated but works everywhere. AudioWorklet is better for production.
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+
+      processor.onaudioprocess = (e) => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+        
+        const inputData = e.inputBuffer.getChannelData(0);
+        // Convert Float32 to Int16 PCM
+        const pcm16 = new Int16Array(inputData.length);
+        for (let i = 0; i < inputData.length; i++) {
+          let s = Math.max(-1, Math.min(1, inputData[i]));
+          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+
+        // Convert Int16Array to base64
+        const buffer = new Uint8Array(pcm16.buffer);
+        let binary = '';
+        for (let i = 0; i < buffer.byteLength; i++) {
+          binary += String.fromCharCode(buffer[i]);
+        }
+        const base64Str = window.btoa(binary);
+
+        wsRef.current.send(JSON.stringify({ audioB64: base64Str }));
+      };
+
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+
+    } catch (err) {
+      console.error("Failed to start call", err);
+      alert("Microphone access denied or error starting call.");
+      endCall();
+    }
+  };
+
+  const endCall = () => {
+    setIsCallActive(false);
+    
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(t => t.stop());
+      mediaStreamRef.current = null;
+    }
+    if (audioQueueRef.current) {
+      audioQueueRef.current.stop();
+      audioQueueRef.current = null;
     }
   };
 
@@ -250,9 +258,13 @@ function App() {
           <img src="/logo.png" alt="RT Communications Logo" className="brand-logo" />
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button className={`new-chat-btn ${isVoiceMode ? 'active-voice-btn' : ''}`} onClick={toggleVoiceMode} style={{ backgroundColor: isVoiceMode ? '#ef4444' : '' }}>
-            {isVoiceMode ? <PhoneOff size={18} /> : <Phone size={18} />}
-            {isVoiceMode ? 'End Call' : 'Call'}
+          <button 
+            className={`new-chat-btn ${isCallActive ? 'active-voice-btn' : ''}`} 
+            onClick={toggleCall} 
+            style={{ backgroundColor: isCallActive ? '#ef4444' : '' }}
+          >
+            {isCallActive ? <PhoneOff size={18} /> : <Phone size={18} />}
+            {isCallActive ? 'End Live Call' : 'Start Live Call'}
           </button>
           <button className="new-chat-btn" onClick={handleNewChat}>
             <MessageSquarePlus size={18} />
@@ -295,25 +307,22 @@ function App() {
       </main>
 
       <div className="input-container">
-        {isVoiceMode ? (
+        {isCallActive ? (
           <div className="voice-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px' }}>
-            <button 
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`mic-button ${isRecording ? 'recording' : ''}`}
-              disabled={isLoading}
+            <div 
+              className="mic-button recording"
               style={{
                 width: '80px', height: '80px', borderRadius: '50%',
-                backgroundColor: isRecording ? '#ef4444' : '#4f46e5',
-                color: 'white', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer',
-                display: 'flex', justifyContent: 'center', alignItems: 'center',
-                boxShadow: isRecording ? '0 0 20px rgba(239, 68, 68, 0.6)' : '0 4px 12px rgba(79, 70, 229, 0.4)',
-                transition: 'all 0.3s ease'
+                backgroundColor: '#ef4444',
+                color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center',
+                boxShadow: '0 0 20px rgba(239, 68, 68, 0.6)',
+                animation: 'pulse 1.5s infinite'
               }}
             >
-              {isRecording ? <MicOff size={32} /> : <Mic size={32} />}
-            </button>
+              <Mic size={32} />
+            </div>
             <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '0.9rem' }}>
-              {isLoading ? "Thinking..." : isRecording ? "Tap to Stop & Send" : "Tap to Speak"}
+              Live call active. Speak naturally.
             </p>
           </div>
         ) : (

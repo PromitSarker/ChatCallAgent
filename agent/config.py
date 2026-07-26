@@ -7,6 +7,7 @@ load_dotenv()
 DB_FILE = (getenv("DB_FILE") or "data/stayease.db").strip()
 GEMINI_API_KEY = (getenv("GEMINI_API_KEY") or "").strip()
 GEMINI_MODEL = (getenv("GEMINI_MODEL") or "gemini-1.5-flash").strip()
+GEMINI_LIVE_MODEL = (getenv("GEMINI_LIVE_MODEL") or "gemini-3.1-flash-live-preview").strip()
 
 SMTP_SERVER = getenv("SMTP_SERVER", "")
 SMTP_PORT = int(getenv("SMTP_PORT", "587"))
