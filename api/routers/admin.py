@@ -16,3 +16,13 @@ def get_collected_data() -> List[Dict[str, Any]]:
 @router.get("/auth_codes")
 def get_auth_codes() -> List[Dict[str, Any]]:
 	return admin_store.get_auth_codes()
+
+@router.delete("/conversations/{conversation_id}")
+def delete_conversation(conversation_id: str):
+	admin_store.delete_conversation(conversation_id)
+	return {"status": "success", "message": f"Conversation {conversation_id} deleted."}
+
+@router.delete("/conversations")
+def delete_all_conversations():
+	admin_store.delete_all_conversations()
+	return {"status": "success", "message": "All conversations deleted."}

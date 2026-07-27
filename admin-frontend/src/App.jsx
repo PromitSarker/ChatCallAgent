@@ -61,7 +61,8 @@ function DashboardView() {
   const [loading, setLoading] = useState(true);
   const [selectedSummary, setSelectedSummary] = useState(null);
 
-  useEffect(() => {
+  const fetchConversations = () => {
+    setLoading(true);
     fetch(`${API_BASE_URL}/admin/conversations`)
       .then(res => res.json())
       .then(data => {
@@ -72,7 +73,35 @@ function DashboardView() {
         console.error("Failed to fetch conversations", err);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchConversations();
   }, []);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this conversation?")) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/conversations/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await getApiError(res));
+      fetchConversations();
+    } catch (err) {
+      console.error(err);
+      alert(`Could not delete conversation: ${err.message}`);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!window.confirm("Are you sure you want to delete ALL conversations? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/conversations`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await getApiError(res));
+      fetchConversations();
+    } catch (err) {
+      console.error(err);
+      alert(`Could not delete all conversations: ${err.message}`);
+    }
+  };
 
   return (
     <div className="fade-in">
@@ -95,7 +124,16 @@ function DashboardView() {
       </div>
 
       <div className="glass-card table-container">
-        <h3>Recent Conversations</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0 }}>Recent Conversations</h3>
+          <button 
+            className="btn" 
+            style={{ background: 'var(--danger)', color: 'white', padding: '6px 12px', fontSize: '0.85rem' }} 
+            onClick={handleDeleteAll}
+          >
+            Delete All
+          </button>
+        </div>
         {loading ? (
           <p style={{ marginTop: '20px', color: 'var(--text-muted)' }}>Loading...</p>
         ) : (
@@ -108,6 +146,7 @@ function DashboardView() {
                 <th>Status</th>
                 <th>Summary</th>
                 <th>Last Updated</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -147,6 +186,15 @@ function DashboardView() {
                   </td>
                   <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     {new Date(conv.last_updated).toLocaleString()}
+                  </td>
+                  <td>
+                    <button 
+                      className="btn" 
+                      style={{ background: 'transparent', border: '1px solid var(--danger)', color: 'var(--danger)', padding: '4px 10px', fontSize: '0.75rem' }}
+                      onClick={() => handleDelete(conv.conversation_id)}
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}

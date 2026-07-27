@@ -46,4 +46,24 @@ class AdminStore:
 			
 		return [dict(row) for row in rows]
 
+	def delete_conversation(self, conversation_id: str) -> bool:
+		query_conv = "DELETE FROM conversations WHERE conversation_id = ?"
+		query_summary = "DELETE FROM session_summaries WHERE session_id = ?"
+		with get_connection() as conn:
+			cur = conn.cursor()
+			cur.execute(query_conv, (conversation_id,))
+			cur.execute(query_summary, (conversation_id,))
+			conn.commit()
+		return True
+
+	def delete_all_conversations(self) -> bool:
+		query_conv = "DELETE FROM conversations"
+		query_summary = "DELETE FROM session_summaries"
+		with get_connection() as conn:
+			cur = conn.cursor()
+			cur.execute(query_conv)
+			cur.execute(query_summary)
+			conn.commit()
+		return True
+
 admin_store = AdminStore()
