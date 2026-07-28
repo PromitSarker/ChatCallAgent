@@ -81,6 +81,7 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
 
 async def proxy_client_to_gemini(client_ws: WebSocket, gemini_ws):
     """Reads audio chunks from the browser and sends realtimeInput to Gemini."""
+    chunk_count = 0
     try:
         while True:
             # Expecting base64 string or JSON
@@ -90,6 +91,7 @@ async def proxy_client_to_gemini(client_ws: WebSocket, gemini_ws):
                 if "realtimeInput" in data:
                     # Forward structured realtime input
                     await gemini_ws.send(message)
+                    chunk_count += 1
                 elif "audioB64" in data:
                     # Construct realtimeInput if client just sends raw b64
                     payload = {
@@ -101,6 +103,7 @@ async def proxy_client_to_gemini(client_ws: WebSocket, gemini_ws):
                         }
                     }
                     await gemini_ws.send(json.dumps(payload))
+                    chunk_count += 1
             except json.JSONDecodeError:
                 # If they just sent bare text, they might have sent base64 directly
                 payload = {
@@ -112,17 +115,24 @@ async def proxy_client_to_gemini(client_ws: WebSocket, gemini_ws):
                     }
                 }
                 await gemini_ws.send(json.dumps(payload))
+                chunk_count += 1
+
+            if chunk_count % 50 == 1:
+                print(f"Audio chunks sent to Gemini: {chunk_count}")
 
     except Exception as e:
-        print("client_to_gemini exception:", str(e))
+        print(f"client_to_gemini exception (after {chunk_count} chunks):", str(e))
 
 
 async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_id: str):
     """Reads from Gemini and routes audio/text to client, and handles tool calls."""
+    response_count = 0
     try:
         while True:
             response_str = await gemini_ws.recv()
+            response_count += 1
             data = json.loads(response_str)
+            print(f"Gemini response #{response_count}, keys: {list(data.keys())}")
 
             if "serverContent" in data:
                 server_content = data["serverContent"]
