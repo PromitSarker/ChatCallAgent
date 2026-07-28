@@ -13,3 +13,4 @@ python-multipart
 pypdf
 langchain-chroma
 google-generativeai
+websockets

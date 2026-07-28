@@ -20,7 +20,7 @@ if not GEMINI_LIVE_MODEL.startswith("models/"):
 else:
     formatted_model = GEMINI_LIVE_MODEL
 
-GEMINI_WS_URL = f"wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key={GEMINI_API_KEY}"
+GEMINI_WS_URL = f"wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key={GEMINI_API_KEY}"
 
 @router.websocket("/ws/{conversation_id}")
 async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
@@ -90,12 +90,10 @@ async def proxy_client_to_gemini(client_ws: WebSocket, gemini_ws):
                     # Construct realtimeInput if client just sends raw b64
                     payload = {
                         "realtimeInput": {
-                            "mediaChunks": [
-                                {
-                                    "mimeType": "audio/pcm;rate=16000",
-                                    "data": data["audioB64"]
-                                }
-                            ]
+                            "audio": {
+                                "data": data["audioB64"],
+                                "mimeType": "audio/pcm;rate=16000"
+                            }
                         }
                     }
                     await gemini_ws.send(json.dumps(payload))
@@ -103,12 +101,10 @@ async def proxy_client_to_gemini(client_ws: WebSocket, gemini_ws):
                 # If they just sent bare text, they might have sent base64 directly
                 payload = {
                     "realtimeInput": {
-                        "mediaChunks": [
-                            {
-                                "mimeType": "audio/pcm;rate=16000",
-                                "data": message
-                            }
-                        ]
+                        "audio": {
+                            "data": message,
+                            "mimeType": "audio/pcm;rate=16000"
+                        }
                     }
                 }
                 await gemini_ws.send(json.dumps(payload))
