@@ -43,9 +43,17 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
                     "model": formatted_model,
                     "generationConfig": {
                         "responseModalities": ["AUDIO"],
+                        "speechConfig": {
+                            "voiceConfig": {
+                                "prebuiltVoiceConfig": {
+                                    "voiceName": "Leda"
+                                }
+                            },
+                            "languageCode": "bn-BD"
+                        }
                     },
                     "systemInstruction": {
-                        "parts": [{"text": system_prompt}]
+                        "parts": [{"text": system_prompt + "\n\nIMPORTANT: Always respond in Bengali (বাংলা). You are a friendly female assistant. Speak naturally in Bengali."}]
                     },
                     "tools": [{"functionDeclarations": LIVE_TOOL_DECLARATIONS}]
                 }
