@@ -41,12 +41,16 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
             setup_message = {
                 "setup": {
                     "model": formatted_model,
+                    "generationConfig": {
+                        "responseModalities": ["AUDIO"],
+                    },
                     "systemInstruction": {
                         "parts": [{"text": system_prompt}]
                     },
                     "tools": [{"functionDeclarations": LIVE_TOOL_DECLARATIONS}]
                 }
             }
+            print(f"Sending setup with model: {formatted_model}")
             await gemini_ws.send(json.dumps(setup_message))
 
             # Receive the setup response
