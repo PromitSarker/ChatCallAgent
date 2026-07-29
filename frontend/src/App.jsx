@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, MessageSquarePlus, MessageSquare, Paperclip, Loader2, Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { motion } from 'framer-motion';
 import { AudioQueue } from './utils/audioQueue';
 
 const generateUUID = () => {
@@ -258,50 +259,73 @@ function App() {
           <img src="/logo.png" alt="RT Communications Logo" className="brand-logo" />
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button 
+          <motion.button 
             className={`new-chat-btn ${isCallActive ? 'active-voice-btn' : ''}`} 
             onClick={toggleCall} 
             style={{ backgroundColor: isCallActive ? '#ef4444' : '' }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
           >
             {isCallActive ? <PhoneOff size={18} /> : <Phone size={18} />}
             {isCallActive ? 'End Live Call' : 'Start Live Call'}
-          </button>
-          <button className="new-chat-btn" onClick={handleNewChat}>
+          </motion.button>
+          <motion.button 
+            className="new-chat-btn" 
+            onClick={handleNewChat}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
             <MessageSquarePlus size={18} />
             New Chat
-          </button>
+          </motion.button>
         </div>
       </header>
 
       <main className="chat-container">
         {messages.length === 0 ? (
-          <div className="empty-state">
+          <motion.div 
+            className="empty-state"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
             <img src="/logo.png" alt="RT Communications Logo" className="empty-state-logo" />
             <h2>How can I help you today?</h2>
             <p>Ask about masking SMS, pricing, or our API features.</p>
-          </div>
+          </motion.div>
         ) : (
           messages.map((msg, index) => (
-            <div key={index} className={`message-wrapper ${msg.role}`}>
+            <motion.div 
+              key={index} 
+              className={`message-wrapper ${msg.role}`}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
               <div className={`avatar ${msg.role}`}>
                 {msg.role === 'user' ? 'U' : 'RT'}
               </div>
               <div className="message-bubble">
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>
-            </div>
+            </motion.div>
           ))
         )}
         
         {isLoading && (
-          <div className="message-wrapper assistant">
+          <motion.div 
+            className="message-wrapper assistant"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
             <div className="avatar assistant">RT</div>
             <div className="message-bubble typing-indicator">
               <div className="typing-dot"></div>
               <div className="typing-dot"></div>
               <div className="typing-dot"></div>
             </div>
-          </div>
+          </motion.div>
         )}
         <div ref={messagesEndRef} />
       </main>
@@ -309,18 +333,19 @@ function App() {
       <div className="input-container">
         {isCallActive ? (
           <div className="voice-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px' }}>
-            <div 
+            <motion.div 
               className="mic-button recording"
               style={{
                 width: '80px', height: '80px', borderRadius: '50%',
                 backgroundColor: '#ef4444',
                 color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center',
                 boxShadow: '0 0 20px rgba(239, 68, 68, 0.6)',
-                animation: 'pulse 1.5s infinite'
               }}
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
             >
               <Mic size={32} />
-            </div>
+            </motion.div>
             <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '0.9rem' }}>
               Live call active. Speak naturally.
             </p>
@@ -334,15 +359,17 @@ function App() {
               onChange={handleFileUpload}
               accept="image/*,.pdf,.doc,.docx"
             />
-            <button
+            <motion.button
               type="button"
               className="attachment-btn"
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading || isUploading}
               title="Upload Document"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
               {isUploading ? <Loader2 size={20} className="spin" /> : <Paperclip size={20} />}
-            </button>
+            </motion.button>
             
             <input
               type="text"
@@ -352,13 +379,15 @@ function App() {
               placeholder="Type your message here..."
               disabled={isLoading || isUploading}
             />
-            <button 
+            <motion.button 
               type="submit" 
               className="send-btn" 
               disabled={!input.trim() || isLoading || isUploading}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
               <Send size={18} />
-            </button>
+            </motion.button>
           </form>
         )}
       </div>
