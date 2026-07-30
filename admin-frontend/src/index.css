@@ -28,12 +28,18 @@ body {
     radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.15) 0px, transparent 50%);
   color: var(--text-main);
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
 }
 
 .app-container {
   display: flex;
   min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 /* Sidebar */
@@ -110,6 +116,7 @@ body {
   flex: 1;
   padding: 40px;
   max-height: 100vh;
+  max-height: 100dvh;
   overflow-y: auto;
 }
 
@@ -329,4 +336,53 @@ tr:hover td {
   border-radius: 16px;
   border: 1px solid var(--glass-border);
   box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    padding: 16px;
+    border-right: none;
+    border-bottom: 1px solid var(--glass-border);
+  }
+  
+  .brand {
+    margin-bottom: 16px;
+    justify-content: center;
+  }
+
+  .nav-menu {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .nav-item {
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+
+  .main-content {
+    padding: 20px;
+  }
+
+  .page-title {
+    font-size: 1.5rem;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-content {
+    padding: 24px;
+    width: 90%;
+    max-width: 400px;
+  }
 }
