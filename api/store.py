@@ -4,19 +4,19 @@ from agent.db import get_connection
 from api.schemas import ConversationMessage
 
 class ConversationStore:
-	"""SQLite-backed store for chat history and conversation metadata."""
+	"""PostgreSQL-backed store for chat history and conversation metadata."""
 
 	_EXISTS_QUERY = """
 		SELECT 1
 		FROM conversations
-		WHERE conversation_id = ?
+		WHERE conversation_id = %s
 		LIMIT 1
 	"""
 
 	_MESSAGES_QUERY = """
 		SELECT role, content, created_at
 		FROM conversations
-		WHERE conversation_id = ?
+		WHERE conversation_id = %s
 		ORDER BY created_at ASC, id ASC
 	"""
 
@@ -29,13 +29,13 @@ class ConversationStore:
 			escalate,
 			created_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?)
+		VALUES (%s, %s, %s, %s, %s, %s)
 	"""
 
 	_LAST_INTENT_QUERY = """
 		SELECT intent
 		FROM conversations
-		WHERE conversation_id = ?
+		WHERE conversation_id = %s
 			AND intent IS NOT NULL
 		ORDER BY created_at DESC, id DESC
 		LIMIT 1
@@ -44,20 +44,22 @@ class ConversationStore:
 	_LAST_ESCALATE_QUERY = """
 		SELECT escalate
 		FROM conversations
-		WHERE conversation_id = ?
+		WHERE conversation_id = %s
 		ORDER BY created_at DESC, id DESC
 		LIMIT 1
 	"""
 
 	def exists(self, conversation_id: str) -> bool:
 		with get_connection() as conn:
-			cur = conn.execute(self._EXISTS_QUERY, (conversation_id,))
-			return cur.fetchone() is not None
+			with conn.cursor() as cur:
+				cur.execute(self._EXISTS_QUERY, (conversation_id,))
+				return cur.fetchone() is not None
 
 	def get_messages(self, conversation_id: str) -> List[ConversationMessage]:
 		with get_connection() as conn:
-			cur = conn.execute(self._MESSAGES_QUERY, (conversation_id,))
-			rows = cur.fetchall()
+			with conn.cursor() as cur:
+				cur.execute(self._MESSAGES_QUERY, (conversation_id,))
+				rows = cur.fetchall()
 
 		return [
 			ConversationMessage(
@@ -76,23 +78,25 @@ class ConversationStore:
 		escalate: bool = False,
 	) -> None:
 		with get_connection() as conn:
-			conn.execute(
-				self._INSERT_QUERY,
-				(
-					conversation_id,
-					message.role,
-					message.content,
-					intent,
-					1 if escalate else 0,
-					message.timestamp,
-				),
-			)
+			with conn.cursor() as cur:
+				cur.execute(
+					self._INSERT_QUERY,
+					(
+						conversation_id,
+						message.role,
+						message.content,
+						intent,
+						1 if escalate else 0,
+						message.timestamp,
+					),
+				)
 			conn.commit()
 
 	def get_last_intent(self, conversation_id: str) -> Optional[str]:
 		with get_connection() as conn:
-			cur = conn.execute(self._LAST_INTENT_QUERY, (conversation_id,))
-			row = cur.fetchone()
+			with conn.cursor() as cur:
+				cur.execute(self._LAST_INTENT_QUERY, (conversation_id,))
+				row = cur.fetchone()
 
 		if not row:
 			return None
@@ -102,8 +106,9 @@ class ConversationStore:
 
 	def get_escalate(self, conversation_id: str) -> bool:
 		with get_connection() as conn:
-			cur = conn.execute(self._LAST_ESCALATE_QUERY, (conversation_id,))
-			row = cur.fetchone()
+			with conn.cursor() as cur:
+				cur.execute(self._LAST_ESCALATE_QUERY, (conversation_id,))
+				row = cur.fetchone()
 
 		if not row:
 			return False
@@ -111,10 +116,11 @@ class ConversationStore:
 		return bool(row["escalate"])
 
 	def get_session_summary(self, session_id: str) -> str:
-		query = "SELECT summary FROM session_summaries WHERE session_id = ?"
+		query = "SELECT summary FROM session_summaries WHERE session_id = %s"
 		with get_connection() as conn:
-			cur = conn.execute(query, (session_id,))
-			row = cur.fetchone()
+			with conn.cursor() as cur:
+				cur.execute(query, (session_id,))
+				row = cur.fetchone()
 		if not row:
 			return ""
 		return row["summary"]
@@ -122,11 +128,12 @@ class ConversationStore:
 	def update_session_summary(self, session_id: str, new_summary: str) -> None:
 		query = """
 			INSERT INTO session_summaries (session_id, summary)
-			VALUES (?, ?)
+			VALUES (%s, %s)
 			ON CONFLICT (session_id) DO UPDATE SET summary = excluded.summary, updated_at = CURRENT_TIMESTAMP
 		"""
 		with get_connection() as conn:
-			conn.execute(query, (session_id, new_summary))
+			with conn.cursor() as cur:
+				cur.execute(query, (session_id, new_summary))
 			conn.commit()
 
 conversation_store = ConversationStore()

@@ -17,8 +17,9 @@ class AdminStore:
 			ORDER BY last_updated DESC
 		"""
 		with get_connection() as conn:
-			cur = conn.execute(query)
-			rows = cur.fetchall()
+			with conn.cursor() as cur:
+				cur.execute(query)
+				rows = cur.fetchall()
 
 		return [dict(row) for row in rows]
 
@@ -29,8 +30,9 @@ class AdminStore:
 			ORDER BY created_at DESC
 		"""
 		with get_connection() as conn:
-			cur = conn.execute(query)
-			rows = cur.fetchall()
+			with conn.cursor() as cur:
+				cur.execute(query)
+				rows = cur.fetchall()
 		
 		return [dict(row) for row in rows]
 		
@@ -41,18 +43,19 @@ class AdminStore:
 			ORDER BY created_at DESC
 		"""
 		with get_connection() as conn:
-			cur = conn.execute(query)
-			rows = cur.fetchall()
+			with conn.cursor() as cur:
+				cur.execute(query)
+				rows = cur.fetchall()
 			
 		return [dict(row) for row in rows]
 
 	def delete_conversation(self, conversation_id: str) -> bool:
-		query_conv = "DELETE FROM conversations WHERE conversation_id = ?"
-		query_summary = "DELETE FROM session_summaries WHERE session_id = ?"
+		query_conv = "DELETE FROM conversations WHERE conversation_id = %s"
+		query_summary = "DELETE FROM session_summaries WHERE session_id = %s"
 		with get_connection() as conn:
-			cur = conn.cursor()
-			cur.execute(query_conv, (conversation_id,))
-			cur.execute(query_summary, (conversation_id,))
+			with conn.cursor() as cur:
+				cur.execute(query_conv, (conversation_id,))
+				cur.execute(query_summary, (conversation_id,))
 			conn.commit()
 		return True
 
@@ -60,9 +63,9 @@ class AdminStore:
 		query_conv = "DELETE FROM conversations"
 		query_summary = "DELETE FROM session_summaries"
 		with get_connection() as conn:
-			cur = conn.cursor()
-			cur.execute(query_conv)
-			cur.execute(query_summary)
+			with conn.cursor() as cur:
+				cur.execute(query_conv)
+				cur.execute(query_summary)
 			conn.commit()
 		return True
 

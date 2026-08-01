@@ -14,3 +14,4 @@ pypdf
 langchain-chroma
 google-generativeai
 websockets
+psycopg2-binary

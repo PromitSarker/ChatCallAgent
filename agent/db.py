@@ -1,37 +1,35 @@
 import os
-import sqlite3
-import shutil
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 from typing import Generator
 
-from agent.config import DB_FILE
+from agent.config import DATABASE_URL
 
 def initialize_db():
-    parent_dir = os.path.dirname(DB_FILE)
-    if parent_dir and not os.path.exists(parent_dir):
-        os.makedirs(parent_dir, exist_ok=True)
+    if not DATABASE_URL:
+        print("DATABASE_URL is not set, skipping database initialization")
+        return
         
-    old_db_path = os.path.join(os.path.dirname(__file__), "..", "stayease.db")
-    if not os.path.exists(DB_FILE) and os.path.exists(old_db_path):
-        print(f"Migrating database from {old_db_path} to {DB_FILE}")
-        shutil.copy2(old_db_path, DB_FILE)
-
-    if not os.path.exists(DB_FILE):
-        print(f"Initializing database {DB_FILE} from schema...")
-        
+    print(f"Initializing database from schema...")
+    
     # We always run the schema to ensure IF NOT EXISTS tables are created
     schema_path = os.path.join(os.path.dirname(__file__), "..", "sql", "schema.sql")
     if os.path.exists(schema_path):
         with open(schema_path, "r", encoding="utf-8") as f:
             schema_script = f.read()
             
-        with sqlite3.connect(DB_FILE) as conn:
-            conn.executescript(schema_script)
+        try:
+            with psycopg2.connect(DATABASE_URL) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(schema_script)
+                conn.commit()
+        except Exception as e:
+            print(f"Failed to initialize schema: {e}")
 
 @contextmanager
-def get_connection() -> Generator[sqlite3.Connection, None, None]:
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
+def get_connection():
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
     try:
         yield conn
     finally:
