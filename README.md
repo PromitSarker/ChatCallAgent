@@ -112,3 +112,10 @@ Graph uses 5 nodes.
    `psql "$DATABASE_URL" -f sql/schema.sql`
 6. Start the API server:
    `uvicorn api.main:app --reload`
+
+## Security & Compliance
+
+This application takes the following measures to secure data:
+
+1. **Data in Transit:** All connections to the database (NeonDB) are strictly enforced using TLS 1.3 with `sslmode=verify-full`. The official Let's Encrypt Root Certificate (`isrgrootx1.pem`) is included in the container and used to cryptographically verify the server identity, protecting against Man-in-the-Middle (MITM) attacks.
+2. **Data at Rest:** The NeonDB storage layer is natively encrypted. Database files and underlying volumes are secured at rest using industry-standard AES-256 encryption managed by the infrastructure provider.
