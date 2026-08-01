@@ -19,8 +19,6 @@ class ChatMessageResponse(BaseModel):
 	intent: Literal["inquiry", "lead", "escalate"]
 	assistant_response: str
 	escalate: bool
-	tool_result: Any
-	state: MessageState
 	timestamp: datetime
 
 

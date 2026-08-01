@@ -135,12 +135,6 @@ def send_message(conversation_id: str, payload: ChatMessageRequest) -> ChatMessa
 		intent=intent,  # type: ignore[arg-type]
 		assistant_response=assistant_response,
 		escalate=escalate,
-		tool_result=tool_result,
-		state=MessageState(
-			extracted_params=result_state.get("extracted_params"),
-			missing_fields=result_state.get("missing_fields"),
-			final_response=result_state.get("final_response"),
-		),
 		timestamp=assistant_timestamp,  # response timestamp = when assistant replied
 	)
 

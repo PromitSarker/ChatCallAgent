@@ -5,7 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import SecretStr
 
 try:
-    print("API KEY:", os.getenv('GEMINI_API_KEY'))
+    print("API KEY is loaded." if os.getenv('GEMINI_API_KEY') else "API KEY is missing!")
     llm = ChatGoogleGenerativeAI(
         model=os.getenv('GEMINI_MODEL') or 'gemini-1.5-flash',
         api_key=os.getenv('GEMINI_API_KEY')
