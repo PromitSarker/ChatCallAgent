@@ -165,6 +165,9 @@ function App() {
         if (data.audioB64) {
           audioQueue.addAudioFromBase64(data.audioB64);
         }
+        if (data.chat_message) {
+          setMessages(prev => [...prev, { role: 'assistant', content: data.chat_message }]);
+        }
         if (data.text) {
           setMessages(prev => {
             const last = prev[prev.length - 1];

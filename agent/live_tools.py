@@ -2,7 +2,8 @@ from agent.tools import (
 	escalate,
 	search_knowledge_base,
 	save_collected_information,
-	send_verification_email
+	send_verification_email,
+	write_to_chat
 )
 
 # Map function names to the actual implementations
@@ -11,6 +12,7 @@ LIVE_TOOLS_MAP = {
 	"search_knowledge_base": search_knowledge_base.invoke,
 	"save_collected_information": save_collected_information.invoke,
 	"send_verification_email": send_verification_email.invoke,
+	"write_to_chat": write_to_chat.invoke,
 }
 
 # Declarations formatted for Gemini's Multimodal Live API
@@ -69,6 +71,20 @@ LIVE_TOOL_DECLARATIONS = [
 				}
 			},
 			"required": ["email"]
+		}
+	},
+	{
+		"name": "write_to_chat",
+		"description": "Write a message directly to the text chat interface for the user to see. Use this when the user asks you to \"write it down\", \"spell it\", or provide detailed text (like a price list or link) during a voice call.",
+		"parameters": {
+			"type": "OBJECT",
+			"properties": {
+				"message": {
+					"type": "STRING",
+					"description": "The message text you want to output into the chatbox."
+				}
+			},
+			"required": ["message"]
 		}
 	}
 ]

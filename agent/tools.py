@@ -115,3 +115,20 @@ def send_verification_email(email: str, session_id: str = "") -> str:
 	else:
 		print(f"MOCK EMAIL SENT TO {email}: Code is {code}")
 		return "Verification code successfully generated and mock-sent (Resend API key not configured)."
+
+
+class WriteToChatInput(BaseModel):
+	message: str
+	session_id: str = "" # Injected by the system, LLM does not need to provide this.
+
+
+@tool(args_schema=WriteToChatInput)
+def write_to_chat(message: str, session_id: str = "") -> str:
+	"""
+	Write a message directly to the text chat interface for the user to see.
+	
+	Why it's needed: Use this when the user asks you to "write it down", "spell it", or provide detailed text (like a price list or link) during a voice call.
+	"""
+	# The actual broadcasting logic is handled in proxy_gemini_to_client.
+	# This function just acts as a stub to return success to the LLM.
+	return "Message successfully written to chat."

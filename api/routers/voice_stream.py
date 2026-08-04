@@ -38,6 +38,7 @@ VOICE CALL RULES:
 - When the caller finishes speaking, respond promptly but don't interrupt.
 - If you need to search the knowledge base, say something like "একটু দেখে নিচ্ছি..." (Let me check...) while the tool runs.
 - If you don't know something, honestly say "এই বিষয়ে আমাদের সেলস টিমের সাথে কথা বললে আরো ভালো হবে" and provide the contact number.
+- If the user asks you to write something down, spell something out, or provide detailed links/information in text, use the `write_to_chat` tool to send it to the chatbox, and verbally confirm with "আমি চ্যাটে লিখে দিচ্ছি" (I am writing it in the chat).
 - End calls politely: "আর কিছু জানার থাকলে জানাবেন। ধন্যবাদ, ভালো থাকবেন!"
 
 IMPORTANT: You are on a LIVE VOICE CALL. Respond as if speaking on the phone — brief, natural, and human-like. No long paragraphs.
@@ -214,13 +215,23 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                     f_id = fc["id"]
                     f_args = fc.get("args", {})
                     
-                    if f_name in ["save_collected_information", "send_verification_email"]:
+                    if f_name in ["save_collected_information", "send_verification_email", "write_to_chat"]:
                         f_args["session_id"] = conversation_id
                     
                     print(f"Executing tool {f_name} with {f_args}")
                     
                     result = ""
-                    if f_name in LIVE_TOOLS_MAP:
+                    if f_name == "write_to_chat":
+                        # Send this message immediately to the frontend
+                        try:
+                            message_text = f_args.get("message", "")
+                            await client_ws.send_json({"chat_message": message_text})
+                            msg = ConversationMessage(role="assistant", content=message_text)
+                            conversation_store.append(conversation_id, msg)
+                            result = "Message successfully written to chat."
+                        except Exception as e:
+                            result = f"Error writing to chat: {str(e)}"
+                    elif f_name in LIVE_TOOLS_MAP:
                         try:
                             result = LIVE_TOOLS_MAP[f_name](f_args)
                         except Exception as e:
