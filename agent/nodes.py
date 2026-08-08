@@ -162,8 +162,11 @@ def _build_system_prompt(session_summary: str = "") -> str:
 
 
 def _clean_response(text: str) -> str:
-	"""Strip any raw <function=...> markup the model may have leaked into content text."""
-	return _FUNCTION_TAG_RE.sub("", text).strip()
+	"""Strip any raw <function=...> markup or leaked JSON the model may have included."""
+	text = _FUNCTION_TAG_RE.sub("", text)
+	# Strip any leaked "Result: [ ... ]" or "System Info: [ ... ]" from the beginning
+	text = re.sub(r"^(?:Result|System Info):\s*(?:\[.*?\]|\{.*?\})\s*", "", text, flags=re.IGNORECASE | re.DOTALL)
+	return text.strip()
 
 def _extract_text(content: Any) -> str:
 	"""Safely extract plain text from LLM response content which might be a string or a list of blocks."""
@@ -321,7 +324,7 @@ def format_response_node(state: AgentState) -> Dict[str, Any]:
 Your task is to provide a conversational response to the user based on the conversation history.
 
 RULES:
-1. DO NOT output any tool calls, JSON, or raw system information. Provide a plain text conversational reply ONLY. NEVER start your response with "Knowledge base search results:" or include any Python/JSON list formats.
+1. CRITICAL: DO NOT output any tool calls, JSON arrays, JSON objects, or raw system information. Your response must be plain, conversational Bengali text ONLY. DO NOT prefix your response with "Result:", "System Info:", or anything similar. NEVER include any Python/JSON list formats.
 2. If the tool result says 'Successfully saved', DO NOT repeat this. Just naturally acknowledge their input and continue the conversation.
 3. If collecting user details and documents, ask for all the required missing pieces of information at once based on their chosen service type, rather than step-by-step.
 4. If the tool result indicates all details were successfully saved for Bulk Message Services, inform the user of the next steps exactly as follows:
@@ -349,7 +352,8 @@ RULES:
 
 	try:
 		response = llm.invoke(all_messages)
-		final_text = _extract_text(getattr(response, "content", "")).strip()
+		raw_content = _extract_text(getattr(response, "content", "")).strip()
+		final_text = _clean_response(raw_content)
 		
 		if not final_text:
 			# Fallback if LLM returns empty

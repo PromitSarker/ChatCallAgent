@@ -69,8 +69,8 @@ def search_documents(query: str, k: int = 3) -> str:
 		return "No relevant information found in the knowledge base."
 	
 	formatted = []
-	for i, doc in enumerate(results, 1):
-		formatted.append(f"Result {i}:\n{doc.page_content}")
+	for doc in results:
+		formatted.append(f"<knowledge_base_document>\n{doc.page_content}\n</knowledge_base_document>")
 	
 	return "\n\n".join(formatted)
 
