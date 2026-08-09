@@ -52,6 +52,7 @@ function App() {
   // Ringing effect refs
   const ringIntervalRef = useRef(null);
   const ringAudioContextRef = useRef(null);
+  const hasAIPickedUpRef = useRef(false);
 
   useEffect(() => {
     setConversationId(generateUUID());
@@ -202,6 +203,7 @@ function App() {
 
   const startCall = async () => {
     setIsConnecting(true);
+    hasAIPickedUpRef.current = false;
     try {
       // 1. Get Microphone
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -226,14 +228,19 @@ function App() {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        stopRinging();
-        setIsConnecting(false);
         setIsCallActive(true);
-        console.log("Voice WS connected");
+        console.log("Voice WS connected, waiting for AI to answer...");
       };
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        
+        if (!hasAIPickedUpRef.current && (data.audioB64 || data.text || data.chat_message)) {
+          hasAIPickedUpRef.current = true;
+          stopRinging();
+          setIsConnecting(false);
+        }
+
         if (data.interrupted) {
           audioQueue.stop(); // Stop current playback on barge-in
         }
