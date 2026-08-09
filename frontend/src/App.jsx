@@ -3,6 +3,8 @@ import { Send, MessageSquarePlus, MessageSquare, Paperclip, Loader2, Phone, Phon
 import ReactMarkdown from 'react-markdown';
 import { motion } from 'framer-motion';
 import { AudioQueue } from './utils/audioQueue';
+import { CaptchaGate } from './components/CaptchaGate';
+
 
 const generateUUID = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -18,6 +20,11 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   
+  // CAPTCHA state
+  const [isVerified, setIsVerified] = useState(() => {
+    return localStorage.getItem('captchaSolved') === 'true';
+  });
+
   // Voice call states
   const [isCallActive, setIsCallActive] = useState(false);
   
@@ -265,7 +272,7 @@ function App() {
         whileTap={{ scale: 0.95 }}
       >
         {isCallActive ? <PhoneOff size={18} /> : <Phone size={18} />}
-        {isCallActive ? 'End Live Call' : 'Start Live Call'}
+        {isCallActive ? 'End Live Call' : 'Call AI'}
       </motion.button>
       <motion.button 
         className="new-chat-btn" 
@@ -278,6 +285,13 @@ function App() {
       </motion.button>
     </div>
   );
+
+  if (!isVerified) {
+    return <CaptchaGate onSolved={() => {
+      setIsVerified(true);
+      localStorage.setItem('captchaSolved', 'true');
+    }} />;
+  }
 
   return (
     <div className="app-container">
