@@ -212,7 +212,7 @@ function App() {
       const source = audioContext.createMediaStreamSource(stream);
       
       // ScriptProcessor is deprecated but works everywhere. AudioWorklet is better for production.
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const processor = audioContext.createScriptProcessor(1024, 1, 1);
       processorRef.current = processor;
 
       processor.onaudioprocess = (e) => {
