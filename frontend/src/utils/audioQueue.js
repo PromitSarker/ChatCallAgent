@@ -5,7 +5,7 @@ export class AudioQueue {
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
         this.queue = [];
         this.isPlaying = false;
-        this.currentSource = null;
+        this.scheduledSources = [];
         this.nextStartTime = 0;
     }
 
@@ -67,11 +67,15 @@ export class AudioQueue {
             source.connect(this.audioContext.destination);
             source.start(this.nextStartTime);
             
-            this.currentSource = source;
+            this.scheduledSources.push(source);
             this.nextStartTime += buffer.duration;
             
             source.onended = () => {
-                if (this.audioContext.currentTime >= this.nextStartTime) {
+                const index = this.scheduledSources.indexOf(source);
+                if (index > -1) {
+                    this.scheduledSources.splice(index, 1);
+                }
+                if (this.scheduledSources.length === 0) {
                     this.isPlaying = false;
                 }
             };
@@ -79,11 +83,12 @@ export class AudioQueue {
     }
 
     stop() {
-        if (this.currentSource) {
+        this.scheduledSources.forEach(source => {
             try {
-                this.currentSource.stop();
+                source.stop();
             } catch (e) {}
-        }
+        });
+        this.scheduledSources = [];
         this.queue = [];
         this.isPlaying = false;
         this.nextStartTime = 0;
