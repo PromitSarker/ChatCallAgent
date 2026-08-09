@@ -99,6 +99,20 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
             # Receive the setup response
             setup_response = await gemini_ws.recv()
             print("Setup response:", setup_response)
+            
+            # Trigger initial greeting
+            initial_greeting_message = {
+                "clientContent": {
+                    "turns": [
+                        {
+                            "role": "user",
+                            "parts": [{"text": "Hello! Please greet me to start the call."}]
+                        }
+                    ],
+                    "turnComplete": True
+                }
+            }
+            await gemini_ws.send(json.dumps(initial_greeting_message))
 
             # Start proxying
             client_to_gemini_task = asyncio.create_task(proxy_client_to_gemini(websocket, gemini_ws))
