@@ -37,6 +37,7 @@ function App() {
 
   // Voice call states
   const [isCallActive, setIsCallActive] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -47,6 +48,10 @@ function App() {
   const mediaStreamRef = useRef(null);
   const processorRef = useRef(null);
   const audioQueueRef = useRef(null);
+  
+  // Ringing effect refs
+  const ringIntervalRef = useRef(null);
+  const ringAudioContextRef = useRef(null);
 
   useEffect(() => {
     setConversationId(generateUUID());
@@ -139,14 +144,64 @@ function App() {
   // Voice Live Call Logic
   // ----------------------------------------------------
   const toggleCall = () => {
-    if (isCallActive) {
+    if (isCallActive || isConnecting) {
       endCall();
     } else {
       startCall();
     }
   };
 
+  const startRinging = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      ringAudioContextRef.current = ctx;
+      
+      const playRing = () => {
+        if (!ringAudioContextRef.current || ringAudioContextRef.current.state === 'closed') return;
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(440, ctx.currentTime); 
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(480, ctx.currentTime);
+        
+        gainNode.gain.setValueAtTime(0, ctx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.05);
+        gainNode.gain.setValueAtTime(0.1, ctx.currentTime + 1.0);
+        gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.1);
+        
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc1.start(ctx.currentTime);
+        osc2.start(ctx.currentTime);
+        osc1.stop(ctx.currentTime + 1.2);
+        osc2.stop(ctx.currentTime + 1.2);
+      };
+
+      playRing();
+      ringIntervalRef.current = setInterval(playRing, 3000);
+    } catch (e) {
+      console.warn('Could not play ringing sound', e);
+    }
+  };
+
+  const stopRinging = () => {
+    if (ringIntervalRef.current) {
+      clearInterval(ringIntervalRef.current);
+      ringIntervalRef.current = null;
+    }
+    if (ringAudioContextRef.current) {
+      ringAudioContextRef.current.close().catch(e => console.warn(e));
+      ringAudioContextRef.current = null;
+    }
+  };
+
   const startCall = async () => {
+    setIsConnecting(true);
     try {
       // 1. Get Microphone
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -157,6 +212,7 @@ function App() {
         }
       });
       mediaStreamRef.current = stream;
+      startRinging();
 
       // 2. Initialize Audio Queue (for playback)
       const audioQueue = new AudioQueue(24000);
@@ -170,6 +226,8 @@ function App() {
       wsRef.current = ws;
 
       ws.onopen = () => {
+        stopRinging();
+        setIsConnecting(false);
         setIsCallActive(true);
         console.log("Voice WS connected");
       };
@@ -248,6 +306,8 @@ function App() {
   };
 
   const endCall = () => {
+    stopRinging();
+    setIsConnecting(false);
     setIsCallActive(false);
     
     if (wsRef.current) {
@@ -277,12 +337,12 @@ function App() {
       <motion.button 
         className={`new-chat-btn ${isCallActive ? 'active-voice-btn' : ''}`} 
         onClick={toggleCall} 
-        style={{ backgroundColor: isCallActive ? '#ef4444' : '' }}
+        style={{ backgroundColor: isCallActive ? '#ef4444' : (isConnecting ? '#f59e0b' : '') }}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
-        {isCallActive ? <PhoneOff size={18} /> : <Phone size={18} />}
-        {isCallActive ? 'End Live Call' : 'Call AI'}
+        {isCallActive ? <PhoneOff size={18} /> : (isConnecting ? <Loader2 className="spin" size={18} /> : <Phone size={18} />)}
+        {isCallActive ? 'End Live Call' : (isConnecting ? 'Connecting...' : 'Call AI')}
       </motion.button>
       <motion.button 
         className="new-chat-btn" 
