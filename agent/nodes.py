@@ -207,6 +207,17 @@ def call_model_node(state: AgentState) -> Dict[str, Any]:
 		response = llm.invoke(messages)
 		raw_content = _extract_text(getattr(response, "content", "")).strip()
 		
+		if hasattr(response, "usage_metadata") and response.usage_metadata:
+			usage = response.usage_metadata
+			if isinstance(usage, dict):
+				input_tokens = usage.get("input_tokens") or 0
+				output_tokens = usage.get("output_tokens") or 0
+			else:
+				input_tokens = getattr(usage, "prompt_token_count", getattr(usage, "input_tokens", 0)) or 0
+				output_tokens = getattr(usage, "candidates_token_count", getattr(usage, "output_tokens", 0)) or 0
+			if input_tokens > 0 or output_tokens > 0:
+				conversation_store.record_token_usage(state.get("conversation_id", "unknown"), input_tokens, output_tokens, GEMINI_MODEL)
+		
 		updates: Dict[str, Any] = {
 			"messages": [response],
 			"final_response": _clean_response(raw_content),
@@ -359,6 +370,17 @@ RULES:
 		raw_content = _extract_text(getattr(response, "content", "")).strip()
 		final_text = _clean_response(raw_content)
 		
+		if hasattr(response, "usage_metadata") and response.usage_metadata:
+			usage = response.usage_metadata
+			if isinstance(usage, dict):
+				input_tokens = usage.get("input_tokens") or 0
+				output_tokens = usage.get("output_tokens") or 0
+			else:
+				input_tokens = getattr(usage, "prompt_token_count", getattr(usage, "input_tokens", 0)) or 0
+				output_tokens = getattr(usage, "candidates_token_count", getattr(usage, "output_tokens", 0)) or 0
+			if input_tokens > 0 or output_tokens > 0:
+				conversation_store.record_token_usage(state.get("conversation_id", "unknown"), input_tokens, output_tokens, GEMINI_MODEL)
+		
 		if not final_text:
 			# Fallback if LLM returns empty
 			if "Successfully saved" in str(last_message.content):
@@ -420,6 +442,17 @@ def summarize_conversation_node(state: AgentState) -> Dict[str, Any]:
 	try:
 		response = llm.invoke([HumanMessage(content=summary_prompt)])
 		new_summary = str(getattr(response, "content", "")).strip()
+		
+		if hasattr(response, "usage_metadata") and response.usage_metadata:
+			usage = response.usage_metadata
+			if isinstance(usage, dict):
+				input_tokens = usage.get("input_tokens") or 0
+				output_tokens = usage.get("output_tokens") or 0
+			else:
+				input_tokens = getattr(usage, "prompt_token_count", getattr(usage, "input_tokens", 0)) or 0
+				output_tokens = getattr(usage, "candidates_token_count", getattr(usage, "output_tokens", 0)) or 0
+			if input_tokens > 0 or output_tokens > 0:
+				conversation_store.record_token_usage(session_id, input_tokens, output_tokens, GEMINI_MODEL)
 		
 		if new_summary:
 			conversation_store.update_session_summary(session_id, new_summary)

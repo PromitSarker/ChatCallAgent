@@ -2,6 +2,7 @@ import json
 import base64
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi.concurrency import run_in_threadpool
 import websockets
 from websockets.exceptions import ConnectionClosed
 from datetime import datetime
@@ -56,6 +57,9 @@ GEMINI_WS_URL = f"wss://generativelanguage.googleapis.com/ws/google.ai.generativ
 async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
     await websocket.accept()
 
+    # Dictionary to capture max tokens from the background proxy task
+    session_tokens = {"input": 0, "output": 0}
+
     if not GEMINI_API_KEY:
         await websocket.send_json({"error": "GEMINI_API_KEY is not configured"})
         await websocket.close()
@@ -107,7 +111,7 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
 
             # Start proxying
             client_to_gemini_task = asyncio.create_task(proxy_client_to_gemini(websocket, gemini_ws))
-            gemini_to_client_task = asyncio.create_task(proxy_gemini_to_client(websocket, gemini_ws, conversation_id))
+            gemini_to_client_task = asyncio.create_task(proxy_gemini_to_client(websocket, gemini_ws, conversation_id, session_tokens))
 
             done, pending = await asyncio.wait(
                 [client_to_gemini_task, gemini_to_client_task],
@@ -121,6 +125,20 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
     except Exception as e:
         print(f"Error in voice websocket: {str(e)}")
     finally:
+        # Record final session tokens to DB if any were captured, using a threadpool to avoid blocking ASGI loop
+        try:
+            if session_tokens["input"] > 0 or session_tokens["output"] > 0:
+                print(f"Recording live session tokens: {session_tokens}")
+                await run_in_threadpool(
+                    conversation_store.record_token_usage,
+                    conversation_id, 
+                    session_tokens["input"], 
+                    session_tokens["output"], 
+                    GEMINI_LIVE_MODEL
+                )
+        except Exception as e:
+            print(f"Failed to record live session tokens: {e}")
+
         try:
             await websocket.close()
         except:
@@ -172,7 +190,7 @@ async def proxy_client_to_gemini(client_ws: WebSocket, gemini_ws):
         print(f"client_to_gemini exception (after {chunk_count} chunks):", str(e))
 
 
-async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_id: str):
+async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_id: str, session_tokens: dict):
     """Reads from Gemini and routes audio/text to client, and handles tool calls."""
     response_count = 0
     try:
@@ -180,7 +198,19 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
             response_str = await gemini_ws.recv()
             response_count += 1
             data = json.loads(response_str)
-            print(f"Gemini response #{response_count}, keys: {list(data.keys())}")
+            
+            # Attempt to extract usageMetadata if provided by Gemini WS API
+            usage = None
+            if "usageMetadata" in data:
+                usage = data["usageMetadata"]
+            elif "serverContent" in data and "modelTurn" in data["serverContent"] and "usageMetadata" in data["serverContent"]["modelTurn"]:
+                usage = data["serverContent"]["modelTurn"]["usageMetadata"]
+                
+            if usage:
+                # Live API token tracking is usually cumulative per session. 
+                # We save the max seen to record it when the session closes.
+                session_tokens["input"] = max(session_tokens["input"], usage.get("promptTokenCount", 0))
+                session_tokens["output"] = max(session_tokens["output"], usage.get("candidatesTokenCount", 0))
 
             if "serverContent" in data:
                 server_content = data["serverContent"]

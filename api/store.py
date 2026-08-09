@@ -136,4 +136,20 @@ class ConversationStore:
 				cur.execute(query, (session_id, new_summary))
 			conn.commit()
 
+	def record_token_usage(
+		self,
+		session_id: str,
+		input_tokens: int,
+		output_tokens: int,
+		model_name: str
+	) -> None:
+		query = """
+			INSERT INTO token_usage (session_id, input_tokens, output_tokens, model_name)
+			VALUES (%s, %s, %s, %s)
+		"""
+		with get_connection() as conn:
+			with conn.cursor() as cur:
+				cur.execute(query, (session_id, input_tokens, output_tokens, model_name))
+			conn.commit()
+
 conversation_store = ConversationStore()

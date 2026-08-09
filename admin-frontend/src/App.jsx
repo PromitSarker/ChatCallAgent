@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, FileText, Send, Database, AlertCircle, CheckCircle } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, Send, Database, AlertCircle, CheckCircle, DollarSign } from 'lucide-react';
 
 // Do not hard-code localhost: it points at the administrator's own computer
 // when this panel is opened from another device.
@@ -20,6 +20,7 @@ export default function App() {
         {activeTab === 'dashboard' && <DashboardView />}
         {activeTab === 'leads' && <LeadsView />}
         {activeTab === 'knowledge' && <KnowledgeBaseView />}
+        {activeTab === 'billing' && <BillingView />}
       </main>
     </div>
   );
@@ -30,6 +31,7 @@ function Sidebar({ activeTab, setActiveTab }) {
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
     { id: 'leads', label: 'Collected Leads', icon: <Users size={20} /> },
     { id: 'knowledge', label: 'Knowledge Base', icon: <Database size={20} /> },
+    { id: 'billing', label: 'Billing / Cost', icon: <DollarSign size={20} /> },
   ];
 
   return (
@@ -527,6 +529,84 @@ function KnowledgeBaseView() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BillingView() {
+  const [costData, setCostData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchCost = () => {
+    setLoading(true);
+    fetch(`${API_BASE_URL}/admin/cost_summary`)
+      .then(res => res.json())
+      .then(data => {
+        setCostData(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Failed to fetch cost summary", err);
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchCost();
+  }, []);
+
+  const handleReset = async () => {
+    if (!window.confirm("Are you sure you want to reset all token usage logs? This will delete all cost history.")) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/cost_summary`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await getApiError(res));
+      fetchCost();
+    } catch (err) {
+      console.error(err);
+      alert(`Could not reset cost summary: ${err.message}`);
+    }
+  };
+
+  return (
+    <div className="fade-in">
+      <div className="page-header">
+        <h1 className="page-title">Billing & Cost</h1>
+        <p className="page-subtitle">Track exact token usage and API costs</p>
+      </div>
+
+      <div className="dashboard-grid">
+        <div className="glass-card">
+          <h3 style={{ color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>Total Input Tokens</h3>
+          <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>
+            {loading ? '...' : (costData?.total_input_tokens || 0).toLocaleString()}
+          </div>
+        </div>
+        <div className="glass-card">
+          <h3 style={{ color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>Total Output Tokens</h3>
+          <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>
+            {loading ? '...' : (costData?.total_output_tokens || 0).toLocaleString()}
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-card" style={{ marginTop: '24px' }}>
+        <h3 style={{ color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>Estimated Total Cost</h3>
+        <div style={{ fontSize: '3rem', fontWeight: 'bold', color: 'var(--success)', marginBottom: '24px' }}>
+          ${loading ? '...' : (costData?.total_cost_usd || 0).toFixed(6)}
+        </div>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button 
+            className="btn" 
+            style={{ background: 'var(--danger)', color: 'white' }} 
+            onClick={handleReset}
+          >
+            Reset Cost Tracking
+          </button>
+          <button className="btn" onClick={fetchCost} style={{ background: 'var(--primary)', color: 'white' }}>
+            Refresh
+          </button>
         </div>
       </div>
     </div>

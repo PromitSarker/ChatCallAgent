@@ -69,4 +69,57 @@ class AdminStore:
 			conn.commit()
 		return True
 
+	def get_token_usage_summary(self) -> Dict[str, Any]:
+		query = """
+			SELECT 
+				model_name,
+				SUM(input_tokens) as total_input_tokens,
+				SUM(output_tokens) as total_output_tokens
+			FROM token_usage
+			GROUP BY model_name
+		"""
+		with get_connection() as conn:
+			with conn.cursor() as cur:
+				cur.execute(query)
+				rows = cur.fetchall()
+				
+		total_input_tokens = 0
+		total_output_tokens = 0
+		total_cost = 0.0
+		
+		# Pricing matrix per 1 million tokens (USD)
+		pricing_matrix = {
+			"gemini-3.1-flash-lite": {"input": 0.25, "output": 1.50},
+			"gemini-3.1-flash-live-preview": {"input": 0.075, "output": 0.30}, 
+			"gemini-1.5-flash": {"input": 0.075, "output": 0.30},
+			"default": {"input": 0.075, "output": 0.30}
+		}
+
+		for row in rows:
+			model = row['model_name'] or "default"
+			model_key = model.replace("models/", "")
+			
+			inp = row['total_input_tokens'] or 0
+			out = row['total_output_tokens'] or 0
+			
+			total_input_tokens += inp
+			total_output_tokens += out
+			
+			rates = pricing_matrix.get(model_key, pricing_matrix["default"])
+			total_cost += (inp / 1_000_000 * rates["input"]) + (out / 1_000_000 * rates["output"])
+		
+		return {
+			"total_input_tokens": total_input_tokens,
+			"total_output_tokens": total_output_tokens,
+			"total_cost_usd": round(total_cost, 6)
+		}
+
+	def reset_token_usage(self) -> bool:
+		query = "DELETE FROM token_usage"
+		with get_connection() as conn:
+			with conn.cursor() as cur:
+				cur.execute(query)
+			conn.commit()
+		return True
+
 admin_store = AdminStore()

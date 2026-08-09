@@ -26,3 +26,12 @@ def delete_conversation(conversation_id: str):
 def delete_all_conversations():
 	admin_store.delete_all_conversations()
 	return {"status": "success", "message": "All conversations deleted."}
+
+@router.get("/cost_summary")
+def get_cost_summary() -> Dict[str, Any]:
+	return admin_store.get_token_usage_summary()
+
+@router.delete("/cost_summary")
+def reset_cost_summary():
+	admin_store.reset_token_usage()
+	return {"status": "success", "message": "Token usage reset successfully."}
