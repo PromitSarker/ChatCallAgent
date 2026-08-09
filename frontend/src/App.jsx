@@ -255,33 +255,37 @@ function App() {
     }
   };
 
+  const actionButtons = (
+    <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+      <motion.button 
+        className={`new-chat-btn ${isCallActive ? 'active-voice-btn' : ''}`} 
+        onClick={toggleCall} 
+        style={{ backgroundColor: isCallActive ? '#ef4444' : '' }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        {isCallActive ? <PhoneOff size={18} /> : <Phone size={18} />}
+        {isCallActive ? 'End Live Call' : 'Start Live Call'}
+      </motion.button>
+      <motion.button 
+        className="new-chat-btn" 
+        onClick={handleNewChat}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        <MessageSquarePlus size={18} />
+        New Chat
+      </motion.button>
+    </div>
+  );
+
   return (
     <div className="app-container">
       <header className="header">
         <div className="header-brand">
           <img src="/logo.png" alt="RT Communications Logo" className="brand-logo" />
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <motion.button 
-            className={`new-chat-btn ${isCallActive ? 'active-voice-btn' : ''}`} 
-            onClick={toggleCall} 
-            style={{ backgroundColor: isCallActive ? '#ef4444' : '' }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            {isCallActive ? <PhoneOff size={18} /> : <Phone size={18} />}
-            {isCallActive ? 'End Live Call' : 'Start Live Call'}
-          </motion.button>
-          <motion.button 
-            className="new-chat-btn" 
-            onClick={handleNewChat}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <MessageSquarePlus size={18} />
-            New Chat
-          </motion.button>
-        </div>
+        {(messages.length > 0 || isCallActive) && actionButtons}
       </header>
 
       <main className="chat-container">
@@ -295,6 +299,9 @@ function App() {
             <img src="/logo.png" alt="RT Communications Logo" className="empty-state-logo" />
             <h2>How can I help you today?</h2>
             <p>Ask about masking SMS, pricing, or our API features.</p>
+            <div style={{ marginTop: '24px' }}>
+              {actionButtons}
+            </div>
           </motion.div>
         ) : (
           messages.map((msg, index) => (
