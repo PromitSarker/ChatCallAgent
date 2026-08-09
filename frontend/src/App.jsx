@@ -22,7 +22,17 @@ function App() {
   
   // CAPTCHA state
   const [isVerified, setIsVerified] = useState(() => {
-    return localStorage.getItem('captchaSolved') === 'true';
+    const solvedAt = localStorage.getItem('captchaSolvedAt');
+    if (!solvedAt) return false;
+    
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+    const isStillValid = (Date.now() - parseInt(solvedAt, 10)) < ONE_DAY;
+    
+    if (!isStillValid) {
+      localStorage.removeItem('captchaSolvedAt');
+    }
+    
+    return isStillValid;
   });
 
   // Voice call states
@@ -289,7 +299,7 @@ function App() {
   if (!isVerified) {
     return <CaptchaGate onSolved={() => {
       setIsVerified(true);
-      localStorage.setItem('captchaSolved', 'true');
+      localStorage.setItem('captchaSolvedAt', Date.now().toString());
     }} />;
   }
 
