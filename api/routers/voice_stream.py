@@ -72,6 +72,7 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
                 "setup": {
                     "model": formatted_model,
                     "generationConfig": {
+                        "temperature": 0.2,
                         "responseModalities": ["AUDIO"],
                         "speechConfig": {
                             "voiceConfig": {
