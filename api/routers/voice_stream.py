@@ -162,10 +162,12 @@ async def proxy_client_to_gemini(client_ws: WebSocket, gemini_ws):
                     # Construct realtimeInput if client just sends raw b64
                     payload = {
                         "realtimeInput": {
-                            "audio": {
-                                "data": data["audioB64"],
-                                "mimeType": "audio/pcm;rate=16000"
-                            }
+                            "mediaChunks": [
+                                {
+                                    "data": data["audioB64"],
+                                    "mimeType": "audio/pcm;rate=16000"
+                                }
+                            ]
                         }
                     }
                     await gemini_ws.send(json.dumps(payload))
@@ -174,10 +176,12 @@ async def proxy_client_to_gemini(client_ws: WebSocket, gemini_ws):
                 # If they just sent bare text, they might have sent base64 directly
                 payload = {
                     "realtimeInput": {
-                        "audio": {
-                            "data": message,
-                            "mimeType": "audio/pcm;rate=16000"
-                        }
+                        "mediaChunks": [
+                            {
+                                "data": message,
+                                "mimeType": "audio/pcm;rate=16000"
+                            }
+                        ]
                     }
                 }
                 await gemini_ws.send(json.dumps(payload))
