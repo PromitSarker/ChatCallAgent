@@ -87,15 +87,6 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
                             "languageCode": "bn-BD"
                         }
                     },
-                    "realtimeInputConfig": {
-                        "automaticActivityDetection": {
-                            "disabled": False,
-                            "startOfSpeechSensitivity": "START_SENSITIVITY_HIGH",
-                            "endOfSpeechSensitivity": "END_SENSITIVITY_LOW",
-                            "prefixPaddingMs": 100,
-                            "silenceDurationMs": 500
-                        }
-                    },
                     "systemInstruction": {
                         "parts": [{"text": system_prompt + VOICE_PERSONA_PROMPT}]
                     },
@@ -162,12 +153,10 @@ async def proxy_client_to_gemini(client_ws: WebSocket, gemini_ws):
                     # Construct realtimeInput if client just sends raw b64
                     payload = {
                         "realtimeInput": {
-                            "mediaChunks": [
-                                {
-                                    "data": data["audioB64"],
-                                    "mimeType": "audio/pcm;rate=16000"
-                                }
-                            ]
+                            "audio": {
+                                "data": data["audioB64"],
+                                "mimeType": "audio/pcm;rate=16000"
+                            }
                         }
                     }
                     await gemini_ws.send(json.dumps(payload))
@@ -176,12 +165,10 @@ async def proxy_client_to_gemini(client_ws: WebSocket, gemini_ws):
                 # If they just sent bare text, they might have sent base64 directly
                 payload = {
                     "realtimeInput": {
-                        "mediaChunks": [
-                            {
-                                "data": message,
-                                "mimeType": "audio/pcm;rate=16000"
-                            }
-                        ]
+                        "audio": {
+                            "data": message,
+                            "mimeType": "audio/pcm;rate=16000"
+                        }
                     }
                 }
                 await gemini_ws.send(json.dumps(payload))
