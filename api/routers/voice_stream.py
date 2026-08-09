@@ -184,6 +184,7 @@ async def proxy_client_to_gemini(client_ws: WebSocket, gemini_ws):
 async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_id: str, session_tokens: dict):
     """Reads from Gemini and routes audio/text to client, and handles tool calls."""
     response_count = 0
+    current_turn_output = 0
     try:
         while True:
             response_str = await gemini_ws.recv()
@@ -198,10 +199,18 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                 usage = data["serverContent"]["modelTurn"]["usageMetadata"]
                 
             if usage:
-                # Live API token tracking is usually cumulative per session. 
+                # Live API token tracking is usually cumulative per session for prompt. 
                 # We save the max seen to record it when the session closes.
                 session_tokens["input"] = max(session_tokens["input"], usage.get("promptTokenCount", 0))
-                session_tokens["output"] = max(session_tokens["output"], usage.get("candidatesTokenCount", 0))
+                
+                # Output tokens can be under candidatesTokenCount or responseTokenCount
+                out_tokens = usage.get("candidatesTokenCount") or usage.get("responseTokenCount", 0)
+                if not out_tokens and "totalTokenCount" in usage and "promptTokenCount" in usage:
+                    out_tokens = usage["totalTokenCount"] - usage["promptTokenCount"]
+                    
+                # Track the maximum output tokens for the current turn (as it streams in)
+                if out_tokens:
+                    current_turn_output = max(current_turn_output, out_tokens)
 
             if "serverContent" in data:
                 server_content = data["serverContent"]
@@ -209,6 +218,11 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                 # Signal interruption
                 if server_content.get("interrupted"):
                     await client_ws.send_json({"interrupted": True})
+                    
+                # If the turn completes, add the current turn's output tokens to the session total and reset
+                if server_content.get("turnComplete"):
+                    session_tokens["output"] += current_turn_output
+                    current_turn_output = 0
 
                 if "modelTurn" in server_content:
                     parts = server_content["modelTurn"].get("parts", [])
