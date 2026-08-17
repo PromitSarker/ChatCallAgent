@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, FileText, Send, Database, AlertCircle, CheckCircle, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, Send, Database, AlertCircle, CheckCircle, DollarSign, Settings } from 'lucide-react';
 
 // Do not hard-code localhost: it points at the administrator's own computer
 // when this panel is opened from another device.
@@ -21,6 +21,7 @@ export default function App() {
         {activeTab === 'leads' && <LeadsView />}
         {activeTab === 'knowledge' && <KnowledgeBaseView />}
         {activeTab === 'billing' && <BillingView />}
+        {activeTab === 'settings' && <SettingsView />}
       </main>
     </div>
   );
@@ -32,6 +33,7 @@ function Sidebar({ activeTab, setActiveTab }) {
     { id: 'leads', label: 'Collected Leads', icon: <Users size={20} /> },
     { id: 'knowledge', label: 'Knowledge Base', icon: <Database size={20} /> },
     { id: 'billing', label: 'Billing / Cost', icon: <DollarSign size={20} /> },
+    { id: 'settings', label: 'Settings', icon: <Settings size={20} /> },
   ];
 
   return (
@@ -620,6 +622,99 @@ function BillingView() {
             Refresh
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsView() {
+  const [language, setLanguage] = useState('Bengali');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/admin/settings`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.agent_language) {
+          setLanguage(data.agent_language);
+        }
+      })
+      .catch(err => console.error("Failed to fetch settings", err));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'agent_language', value: language })
+      });
+      if (!res.ok) throw new Error(await getApiError(res));
+      setMessage({ type: 'success', text: 'Language updated successfully!' });
+    } catch (err) {
+      console.error(err);
+      setMessage({ type: 'error', text: `Failed to update language: ${err.message}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fade-in">
+      <div className="page-header">
+        <h1 className="page-title">Settings</h1>
+        <p className="page-subtitle">Configure global agent behavior</p>
+      </div>
+
+      <div className="glass-card" style={{ maxWidth: '600px' }}>
+        <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Settings size={20} color="var(--primary-light)" />
+          Agent Language configuration
+        </h3>
+        
+        <div className="input-group">
+          <label>Agent Spoken & Written Language</label>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+            This controls the language the agent uses to reply in text chat and speak in live voice calls.
+          </p>
+          <select 
+            className="input-field"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            style={{ width: '100%', marginBottom: '20px', padding: '10px', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white' }}
+          >
+            <option value="Bengali">Bengali</option>
+            <option value="English">English</option>
+            <option value="Spanish">Spanish</option>
+            <option value="Portuguese">Portuguese</option>
+          </select>
+        </div>
+
+        {message && (
+          <div style={{ 
+            padding: '12px', 
+            borderRadius: '8px',
+            marginBottom: '20px',
+            background: message.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+            color: message.type === 'success' ? 'var(--success)' : 'var(--danger)',
+            display: 'flex', alignItems: 'center', gap: '8px'
+          }}>
+            {message.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+            {message.text}
+          </div>
+        )}
+
+        <button 
+          className="btn" 
+          onClick={handleSave} 
+          disabled={saving}
+          style={{ background: 'var(--primary)', color: 'white' }}
+        >
+          {saving ? 'Saving...' : 'Save Settings'}
+        </button>
       </div>
     </div>
   );

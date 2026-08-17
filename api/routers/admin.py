@@ -35,3 +35,22 @@ def get_cost_summary() -> Dict[str, Any]:
 def reset_cost_summary():
 	admin_store.reset_token_usage()
 	return {"status": "success", "message": "Token usage reset successfully."}
+
+@router.get("/settings")
+def get_settings() -> Dict[str, Any]:
+	return {
+		"agent_language": admin_store.get_setting("agent_language", "Bengali")
+	}
+
+from pydantic import BaseModel
+
+class SettingUpdate(BaseModel):
+	key: str
+	value: str
+
+@router.post("/settings")
+def update_settings(setting: SettingUpdate):
+	success = admin_store.update_setting(setting.key, setting.value)
+	if success:
+		return {"status": "success"}
+	return {"status": "error", "message": "Failed to update setting"}

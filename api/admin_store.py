@@ -136,4 +136,33 @@ class AdminStore:
 			conn.commit()
 		return True
 
+	def get_setting(self, key: str, default: str = "") -> str:
+		query = "SELECT setting_value FROM global_settings WHERE setting_key = %s"
+		try:
+			with get_connection() as conn:
+				with conn.cursor() as cur:
+					cur.execute(query, (key,))
+					row = cur.fetchone()
+			if row:
+				return row["setting_value"]
+		except Exception as e:
+			print(f"Failed to fetch setting {key}: {e}")
+		return default
+
+	def update_setting(self, key: str, value: str) -> bool:
+		query = """
+			INSERT INTO global_settings (setting_key, setting_value)
+			VALUES (%s, %s)
+			ON CONFLICT (setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP
+		"""
+		try:
+			with get_connection() as conn:
+				with conn.cursor() as cur:
+					cur.execute(query, (key, value))
+				conn.commit()
+			return True
+		except Exception as e:
+			print(f"Failed to update setting {key}: {e}")
+			return False
+
 admin_store = AdminStore()

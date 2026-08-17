@@ -12,6 +12,7 @@ from agent.config import GEMINI_API_KEY, GEMINI_LIVE_MODEL
 from agent.nodes import _build_system_prompt
 from agent.live_tools import LIVE_TOOL_DECLARATIONS, LIVE_TOOLS_MAP
 from api.store import conversation_store
+from api.admin_store import admin_store
 from api.schemas import ConversationMessage
 
 router = APIRouter(prefix="/voice", tags=["voice_stream"])
@@ -23,34 +24,28 @@ VOICE_PERSONA_PROMPT = """
 You are the voice receptionist of RT Communication. You are currently on a live phone call with a customer.
 
 PERSONALITY:
-- You are a calm, composed, and intelligent young Bangladeshi woman.
-- You speak fluent Bengali (বাংলা) with a warm, professional, and slightly cheerful tone.
+- You are a calm, composed, and intelligent young woman.
+- You speak fluent {language} with a warm, professional, and slightly cheerful tone.
 - You sound natural — like a real human receptionist, not a robotic assistant.
-- You use natural speech patterns: brief pauses, filler words like "জি", "আচ্ছা", "বুঝতে পারছি" to sound human.
+- You use natural speech patterns and brief pauses to sound human.
 - You are patient and never rush the caller. You listen carefully before responding.
 - You are clever — you understand context quickly and give precise, helpful answers.
-- Display empathy: if the user mentions an issue or confusion, respond with empathy like "আমি বুঝতে পারছি আপনার সমস্যাটা..." (I understand your issue) before offering a solution.
-- Use conversational softeners: say things like "আমার মনে হচ্ছে..." or "সিস্টেমে দেখতে পাচ্ছি যে..." instead of stating rigid facts abruptly.
+- Display empathy if the user mentions an issue or confusion before offering a solution.
 
 VOICE CALL RULES:
-- ALWAYS speak in Bengali (বাংলা). Never switch to English unless the caller speaks English first.
+- ALWAYS speak in {language}. Never switch to another language unless the caller speaks it first.
 - Do not say your name. You are just a virtual assistant.
 - Keep your responses SHORT and conversational — this is a phone call, not a text chat. Aim for 1-3 sentences per turn.
 - Do NOT use markdown, bullet points, numbered lists, or any text formatting. Speak naturally as if talking on the phone.
 - Do NOT say "star" or read out formatting symbols. Just speak plainly.
-- STRICT RULE: When greeting, you MUST start exactly with "আসসালামুআলাইকুম! আরটি কমিউনিকেশনে কল করার জন্য ধন্যবাদ।  কিভাবে আপনাকে সাহায্য করতে পারি?" (Do not change this greeting).
+- STRICT RULE: When greeting, you MUST start exactly with "{greeting}" (Do not change this greeting).
 - When the caller finishes speaking, respond promptly but don't interrupt.
 - When you need to search the knowledge base or use a tool:
   - If the check is very quick or simple, you DO NOT need to announce that you are checking. Just check silently and provide the answer.
-  - If you do need to ask the user to wait, DO NOT repeat the same phrase. Use a wide variety of natural, context-aware phrases, for example:
-    * "জি একটু সময় দিবেন, আমি চেক করে জানাচ্ছি..."
-    * "আমি আমাদের সিস্টেমে একটু দেখে নিচ্ছি..."
-    * "আচ্ছা, আমি একটু ভেরিফাই করে দেখছি..."
-    * "এক সেকেন্ড, আমি তথ্যটা বের করছি..."
-    * "আমি আপনার জন্য বিষয়টা চেক করে দেখছি..." (or mention specifically what you are checking).
-- If you don't know something, honestly say "এই বিষয়ে আমাদের সেলস টিমের সাথে কথা বললে আরো ভালো হবে" and provide the contact number.
-- If the user asks you to write something down, spell something out, or provide detailed links/information in text, use the `write_to_chat` tool to send it to the chatbox, and verbally confirm with "আমি চ্যাটে লিখে দিচ্ছি" (I am writing it in the chat).
-- End calls naturally based on the conversation flow. You can vary your farewells, but keep them polite (e.g., "আর কিছু জানার থাকলে জানাবেন। ধন্যবাদ, ভালো থাকবেন!").
+  - If you do need to ask the user to wait, DO NOT repeat the same phrase. Use a wide variety of natural, context-aware phrases.
+- If you don't know something, honestly say you need to transfer them to sales or ask them to contact the sales team, and provide the contact number.
+- If the user asks you to write something down, spell something out, or provide detailed links/information in text, use the `write_to_chat` tool to send it to the chatbox, and verbally confirm that you are writing it in the chat.
+- End calls naturally based on the conversation flow. Keep farewells polite.
 
 IMPORTANT: You are on a LIVE VOICE CALL. Respond as if speaking on the phone — brief, natural, and human-like. No long paragraphs.
 """
@@ -78,7 +73,36 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
 
     # Fetch context summary to inject into system instruction
     session_summary = conversation_store.get_session_summary(conversation_id)
-    system_prompt = _build_system_prompt(session_summary)
+    
+    current_language = admin_store.get_setting("agent_language", "Bengali")
+    
+    language_configs = {
+        "Bengali": {
+            "code": "bn-BD",
+            "greeting": "আসসালামুআলাইকুম! আরটি কমিউনিকেশনে কল করার জন্য ধন্যবাদ। কিভাবে আপনাকে সাহায্য করতে পারি?",
+            "voice": "Leda" # Just use default or try to rely on what works
+        },
+        "English": {
+            "code": "en-US",
+            "greeting": "Hello! Thank you for calling RT Communication. How can I help you today?",
+            "voice": "Aoede"
+        },
+        "Spanish": {
+            "code": "es-ES",
+            "greeting": "¡Hola! Gracias por llamar a RT Communication. ¿Cómo puedo ayudarle hoy?",
+            "voice": "Aoede"
+        },
+        "Portuguese": {
+            "code": "pt-PT",
+            "greeting": "Olá! Obrigado por ligar para a RT Communication. Como posso ajudá-lo hoje?",
+            "voice": "Aoede"
+        }
+    }
+    
+    config = language_configs.get(current_language, language_configs["Bengali"])
+    
+    system_prompt = _build_system_prompt(session_summary, current_language)
+    full_prompt = system_prompt + "\n" + VOICE_PERSONA_PROMPT.format(language=current_language, greeting=config["greeting"])
 
     try:
         async with websockets.connect(GEMINI_WS_URL) as gemini_ws:
@@ -92,14 +116,14 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
                         "speechConfig": {
                             "voiceConfig": {
                                 "prebuiltVoiceConfig": {
-                                    "voiceName": "Leda"
+                                    "voiceName": config["voice"]
                                 }
                             },
-                            "languageCode": "bn-BD"
+                            "languageCode": config["code"]
                         }
                     },
                     "systemInstruction": {
-                        "parts": [{"text": system_prompt + VOICE_PERSONA_PROMPT}]
+                        "parts": [{"text": full_prompt}]
                     },
                     "tools": [{"functionDeclarations": LIVE_TOOL_DECLARATIONS}]
                 }
@@ -318,3 +342,5 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
 
     except Exception as e:
         print("gemini_to_client exception:", str(e))
+    finally:
+        session_tokens["output"] += current_turn_output

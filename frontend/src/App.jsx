@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, MessageSquarePlus, MessageSquare, Paperclip, Loader2, Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
+import { Send, MessageSquarePlus, MessageSquare, Paperclip, Loader2, Phone, PhoneOff, Mic, MicOff, Globe } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion } from 'framer-motion';
 import { AudioQueue } from './utils/audioQueue';
@@ -19,6 +19,7 @@ function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [agentLanguage, setAgentLanguage] = useState('Bengali');
   
   // CAPTCHA state
   const [isVerified, setIsVerified] = useState(() => {
@@ -56,6 +57,17 @@ function App() {
 
   useEffect(() => {
     setConversationId(generateUUID());
+    
+    // Fetch initial language setting
+    fetch('/api/admin/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.agent_language) {
+          setAgentLanguage(data.agent_language);
+        }
+      })
+      .catch(err => console.error("Failed to fetch language setting", err));
+
     return () => {
       endCall();
     };
@@ -74,6 +86,20 @@ function App() {
     setConversationId(generateUUID());
     setMessages([]);
     setInput('');
+  };
+
+  const handleLanguageChange = async (e) => {
+    const newLang = e.target.value;
+    setAgentLanguage(newLang);
+    try {
+      await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'agent_language', value: newLang })
+      });
+    } catch (err) {
+      console.error("Failed to update language", err);
+    }
   };
 
   // ----------------------------------------------------
@@ -340,7 +366,20 @@ function App() {
   };
 
   const actionButtons = (
-    <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+    <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', alignItems: 'center' }}>
+      <div className="language-selector" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface-light)', padding: '6px 12px', borderRadius: '20px', border: '1px solid var(--border)', fontSize: '0.9rem' }}>
+        <Globe size={16} color="var(--primary-light)" />
+        <select 
+          value={agentLanguage} 
+          onChange={handleLanguageChange}
+          style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+        >
+          <option value="Bengali">Bengali</option>
+          <option value="English">English</option>
+          <option value="Spanish">Spanish</option>
+          <option value="Portuguese">Portuguese</option>
+        </select>
+      </div>
       <motion.button 
         className={`new-chat-btn ${isCallActive ? 'active-voice-btn' : ''}`} 
         onClick={toggleCall} 

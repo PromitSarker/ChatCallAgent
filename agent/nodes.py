@@ -142,7 +142,7 @@ DATA RULES (non-negotiable)
 - **Service Limitation**: RT Communication offers the following services: Non-Masking SMS, Masking SMS, Flash SMS, Push-Pull SMS, Short Code SMS, Voice Message, OTP SMS, and Election SMS. If a user asks for other services not listed here, politely inform them that we strictly only offer these specific services. If someone asks which services we provide, ALWAYS call the `search_knowledge_base` tool.
 - NEVER answer from your own knowledge about policies, prices, services, or any company details. ALWAYS call the `search_knowledge_base` tool first and base your answer STRICTLY on the knowledge base results.
 - Reply in plain text only. No markdown formatting.
-- ALWAYS reply in Bengali (বাংলা), regardless of what language the user writes in.
+- ALWAYS reply in {language}, regardless of what language the user writes in.
 - DO NOT output internal reasoning, thought processes, or prefixes like "Thought:". Your text response must ONLY be the final message intended for the user.
 
 ESCALATION
@@ -152,12 +152,13 @@ If you cannot handle a request, call the `escalate` tool.
 _FUNCTION_TAG_RE = re.compile(r"<function=[^>]+>.*?</function>", re.DOTALL)
 
 
-def _build_system_prompt(session_summary: str = "") -> str:
+def _build_system_prompt(session_summary: str = "", language: str = "Bengali") -> str:
 	"""Return the system prompt with today's real date and optional summary injected."""
 	today = date.today()
 	prompt = _SYSTEM_PROMPT_TEMPLATE.format(
 		today=today.strftime("%Y-%m-%d"),
 		weekday=today.strftime("%A"),
+		language=language
 	)
 	
 	if session_summary:
@@ -201,7 +202,11 @@ def call_model_node(state: AgentState) -> Dict[str, Any]:
 		}
 
 	session_summary = state.get("session_summary") or ""
-	system_prompt = _build_system_prompt(session_summary)
+	
+	from api.admin_store import admin_store
+	current_language = admin_store.get_setting("agent_language", "Bengali")
+	
+	system_prompt = _build_system_prompt(session_summary, current_language)
 	messages = [SystemMessage(content=system_prompt)] + state.get("messages", [])
 
 	try:
@@ -336,13 +341,17 @@ def format_response_node(state: AgentState) -> Dict[str, Any]:
 		return {"final_response": str(last_message.content)}
 
 	session_summary = state.get("session_summary") or ""
-	system_prompt = _build_system_prompt(session_summary)
+	
+	from api.admin_store import admin_store
+	current_language = admin_store.get_setting("agent_language", "Bengali")
+	
+	system_prompt = _build_system_prompt(session_summary, current_language)
 	
 	formatter_prompt = """You have just received the result of an internal system action.
 Your task is to provide a conversational response to the user based on the conversation history.
 
 RULES:
-1. CRITICAL: DO NOT output any tool calls, JSON arrays, JSON objects, or raw system information. Your response must be plain, conversational Bengali text ONLY. DO NOT prefix your response with "Result:", "System Info:", or anything similar. NEVER include any Python/JSON list formats.
+1. CRITICAL: DO NOT output any tool calls, JSON arrays, JSON objects, or raw system information. Your response must be plain, conversational {current_language} text ONLY. DO NOT prefix your response with "Result:", "System Info:", or anything similar. NEVER include any Python/JSON list formats.
 2. If the tool result says 'Successfully saved', DO NOT repeat this. Just naturally acknowledge their input and continue the conversation.
 3. If collecting user details and documents, ask for all the required missing pieces of information at once based on their chosen service type, rather than step-by-step.
 4. If the tool result indicates all details were successfully saved for Bulk Message Services, inform the user of the next steps exactly as follows:
