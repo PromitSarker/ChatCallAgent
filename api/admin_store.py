@@ -74,18 +74,24 @@ class AdminStore:
 			SELECT 
 				model_name,
 				SUM(input_tokens) as total_input_tokens,
-				SUM(output_tokens) as total_output_tokens
+				SUM(output_tokens) as total_output_tokens,
+				SUM(duration_seconds) as total_duration_seconds
 			FROM token_usage
 			GROUP BY model_name
 		"""
-		with get_connection() as conn:
-			with conn.cursor() as cur:
-				cur.execute(query)
-				rows = cur.fetchall()
+		try:
+			with get_connection() as conn:
+				with conn.cursor() as cur:
+					cur.execute(query)
+					rows = cur.fetchall()
+		except Exception as e:
+			print(f"Failed to fetch token usage (did you run the migration?): {e}")
+			rows = []
 				
 		total_input_tokens = 0
 		total_output_tokens = 0
 		total_cost = 0.0
+		total_duration = 0.0
 		
 		# Pricing matrix per 1 million tokens (USD)
 		pricing_matrix = {
@@ -101,17 +107,25 @@ class AdminStore:
 			
 			inp = row['total_input_tokens'] or 0
 			out = row['total_output_tokens'] or 0
+			dur = row.get('total_duration_seconds') or 0.0
 			
 			total_input_tokens += inp
 			total_output_tokens += out
+			total_duration += float(dur)
 			
 			rates = pricing_matrix.get(model_key, pricing_matrix["default"])
 			total_cost += (inp / 1_000_000 * rates["input"]) + (out / 1_000_000 * rates["output"])
 		
+		cost_per_minute = 0.0
+		if total_duration > 0:
+			cost_per_minute = (total_cost / total_duration) * 60
+
 		return {
 			"total_input_tokens": total_input_tokens,
 			"total_output_tokens": total_output_tokens,
-			"total_cost_usd": round(total_cost, 6)
+			"total_duration_seconds": round(total_duration, 2),
+			"total_cost_usd": round(total_cost, 6),
+			"cost_per_minute_usd": round(cost_per_minute, 6)
 		}
 
 	def reset_token_usage(self) -> bool:

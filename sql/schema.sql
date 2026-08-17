@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS token_usage (
     input_tokens INTEGER DEFAULT 0,
     output_tokens INTEGER DEFAULT 0,
     model_name TEXT,
+    duration_seconds NUMERIC DEFAULT 0.0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

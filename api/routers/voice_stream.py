@@ -1,4 +1,5 @@
 import json
+import time
 import base64
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -65,6 +66,7 @@ GEMINI_WS_URL = f"wss://generativelanguage.googleapis.com/ws/google.ai.generativ
 @router.websocket("/ws/{conversation_id}")
 async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
     await websocket.accept()
+    start_time = time.time()
 
     # Dictionary to capture max tokens from the background proxy task
     session_tokens = {"input": 0, "output": 0}
@@ -139,6 +141,7 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
     except Exception as e:
         print(f"Error in voice websocket: {str(e)}")
     finally:
+        session_duration = time.time() - start_time
         # Record final session tokens to DB if any were captured, using a threadpool to avoid blocking ASGI loop
         try:
             if session_tokens["input"] > 0 or session_tokens["output"] > 0:
@@ -148,7 +151,8 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
                     conversation_id, 
                     session_tokens["input"], 
                     session_tokens["output"], 
-                    GEMINI_LIVE_MODEL
+                    GEMINI_LIVE_MODEL,
+                    session_duration
                 )
         except Exception as e:
             print(f"Failed to record live session tokens: {e}")

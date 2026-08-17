@@ -589,6 +589,18 @@ function BillingView() {
             {loading ? '...' : (costData?.total_output_tokens || 0).toLocaleString()}
           </div>
         </div>
+        <div className="glass-card">
+          <h3 style={{ color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>Total Usage Duration (s)</h3>
+          <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>
+            {loading ? '...' : (costData?.total_duration_seconds || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}s
+          </div>
+        </div>
+        <div className="glass-card">
+          <h3 style={{ color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>Cost Per Minute</h3>
+          <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--success)' }}>
+            ${loading ? '...' : (costData?.cost_per_minute_usd || 0).toFixed(6)}
+          </div>
+        </div>
       </div>
 
       <div className="glass-card" style={{ marginTop: '24px' }}>

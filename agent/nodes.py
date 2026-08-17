@@ -1,4 +1,5 @@
 import re
+import time
 from datetime import date
 from typing import Any, Dict, List, Optional
 
@@ -204,7 +205,9 @@ def call_model_node(state: AgentState) -> Dict[str, Any]:
 	messages = [SystemMessage(content=system_prompt)] + state.get("messages", [])
 
 	try:
+		start_time = time.time()
 		response = llm.invoke(messages)
+		duration_seconds = time.time() - start_time
 		raw_content = _extract_text(getattr(response, "content", "")).strip()
 		
 		if hasattr(response, "usage_metadata") and response.usage_metadata:
@@ -216,7 +219,7 @@ def call_model_node(state: AgentState) -> Dict[str, Any]:
 				input_tokens = getattr(usage, "prompt_token_count", getattr(usage, "input_tokens", 0)) or 0
 				output_tokens = getattr(usage, "candidates_token_count", getattr(usage, "output_tokens", 0)) or 0
 			if input_tokens > 0 or output_tokens > 0:
-				conversation_store.record_token_usage(state.get("conversation_id", "unknown"), input_tokens, output_tokens, GEMINI_MODEL)
+				conversation_store.record_token_usage(state.get("conversation_id", "unknown"), input_tokens, output_tokens, GEMINI_MODEL, duration_seconds)
 		
 		updates: Dict[str, Any] = {
 			"messages": [response],
@@ -366,7 +369,9 @@ RULES:
 	all_messages = [SystemMessage(content=system_prompt)] + clean_messages + [SystemMessage(content=formatter_prompt)]
 
 	try:
+		start_time = time.time()
 		response = llm.invoke(all_messages)
+		duration_seconds = time.time() - start_time
 		raw_content = _extract_text(getattr(response, "content", "")).strip()
 		final_text = _clean_response(raw_content)
 		
@@ -379,7 +384,7 @@ RULES:
 				input_tokens = getattr(usage, "prompt_token_count", getattr(usage, "input_tokens", 0)) or 0
 				output_tokens = getattr(usage, "candidates_token_count", getattr(usage, "output_tokens", 0)) or 0
 			if input_tokens > 0 or output_tokens > 0:
-				conversation_store.record_token_usage(state.get("conversation_id", "unknown"), input_tokens, output_tokens, GEMINI_MODEL)
+				conversation_store.record_token_usage(state.get("conversation_id", "unknown"), input_tokens, output_tokens, GEMINI_MODEL, duration_seconds)
 		
 		if not final_text:
 			# Fallback if LLM returns empty
@@ -440,7 +445,9 @@ def summarize_conversation_node(state: AgentState) -> Dict[str, Any]:
 		summary_prompt += f"{role}: {m.content}\n"
 		
 	try:
+		start_time = time.time()
 		response = llm.invoke([HumanMessage(content=summary_prompt)])
+		duration_seconds = time.time() - start_time
 		new_summary = str(getattr(response, "content", "")).strip()
 		
 		if hasattr(response, "usage_metadata") and response.usage_metadata:
@@ -452,7 +459,7 @@ def summarize_conversation_node(state: AgentState) -> Dict[str, Any]:
 				input_tokens = getattr(usage, "prompt_token_count", getattr(usage, "input_tokens", 0)) or 0
 				output_tokens = getattr(usage, "candidates_token_count", getattr(usage, "output_tokens", 0)) or 0
 			if input_tokens > 0 or output_tokens > 0:
-				conversation_store.record_token_usage(session_id, input_tokens, output_tokens, GEMINI_MODEL)
+				conversation_store.record_token_usage(session_id, input_tokens, output_tokens, GEMINI_MODEL, duration_seconds)
 		
 		if new_summary:
 			conversation_store.update_session_summary(session_id, new_summary)

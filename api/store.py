@@ -141,15 +141,16 @@ class ConversationStore:
 		session_id: str,
 		input_tokens: int,
 		output_tokens: int,
-		model_name: str
+		model_name: str,
+		duration_seconds: float = 0.0
 	) -> None:
 		query = """
-			INSERT INTO token_usage (session_id, input_tokens, output_tokens, model_name)
-			VALUES (%s, %s, %s, %s)
+			INSERT INTO token_usage (session_id, input_tokens, output_tokens, model_name, duration_seconds)
+			VALUES (%s, %s, %s, %s, %s)
 		"""
 		with get_connection() as conn:
 			with conn.cursor() as cur:
-				cur.execute(query, (session_id, input_tokens, output_tokens, model_name))
+				cur.execute(query, (session_id, input_tokens, output_tokens, model_name, duration_seconds))
 			conn.commit()
 
 conversation_store = ConversationStore()
