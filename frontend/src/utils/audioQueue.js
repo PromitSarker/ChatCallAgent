@@ -44,24 +44,52 @@ export class AudioQueue {
 
     playNext() {
         if (this.queue.length === 0) {
-            this.isPlaying = false;
+            if (this.scheduledSources.length === 0) this.isPlaying = false;
             return;
         }
 
         if (!this.isPlaying) {
-            this.isPlaying = true;
-            // Add a 150ms jitter buffer when starting playback.
-            // This prevents the first tiny audio chunk from finishing 
-            // before the next chunk arrives over the network (causing a stutter).
-            this.nextStartTime = this.audioContext.currentTime + 0.15; 
+            // Check if we have enough audio buffered to start safely without stuttering
+            const bufferedDuration = this.queue.reduce((acc, buffer) => acc + buffer.duration, 0);
+            
+            // Jitter buffer threshold: 0.3 seconds (300ms) or 5 chunks
+            if (bufferedDuration < 0.3 && this.queue.length < 5) {
+                // Not enough buffer yet. We wait for the next chunk.
+                // Safety fallback: force start after 200ms if we didn't reach the threshold
+                if (!this.bufferTimeout) {
+                    this.bufferTimeout = setTimeout(() => {
+                        this.bufferTimeout = null;
+                        if (!this.isPlaying && this.queue.length > 0) {
+                            this.startPlayback();
+                        }
+                    }, 200);
+                }
+                return;
+            }
+            
+            // We reached the threshold! Clear the fallback timeout and start playing.
+            if (this.bufferTimeout) {
+                clearTimeout(this.bufferTimeout);
+                this.bufferTimeout = null;
+            }
+            this.startPlayback();
+            return;
         }
 
-        // We want to schedule all queued buffers
+        this.scheduleQueuedBuffers();
+    }
+
+    startPlayback() {
+        this.isPlaying = true;
+        this.nextStartTime = this.audioContext.currentTime + 0.05; // tiny safety margin
+        this.scheduleQueuedBuffers();
+    }
+
+    scheduleQueuedBuffers() {
         while (this.queue.length > 0) {
             const buffer = this.queue.shift();
             
             // If we are falling behind (queue starved), reset the start time 
-            // with a small buffer to prevent immediate repeated stuttering.
             if (this.nextStartTime < this.audioContext.currentTime) {
                 this.nextStartTime = this.audioContext.currentTime + 0.05;
             }
@@ -79,7 +107,7 @@ export class AudioQueue {
                 if (index > -1) {
                     this.scheduledSources.splice(index, 1);
                 }
-                if (this.scheduledSources.length === 0) {
+                if (this.scheduledSources.length === 0 && this.queue.length === 0) {
                     this.isPlaying = false;
                 }
             };
