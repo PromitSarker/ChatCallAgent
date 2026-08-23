@@ -269,6 +269,9 @@ function App() {
         if (data.interrupted) {
           audioQueue.stop(); // Stop current playback on barge-in
         }
+        if (data.turnComplete) {
+          audioQueue.flush(); // Instantly play whatever is in the buffer if the turn finishes early
+        }
         if (data.audioB64) {
           audioQueue.addAudioFromBase64(data.audioB64);
         }

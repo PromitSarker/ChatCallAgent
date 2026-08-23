@@ -277,6 +277,7 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                     
                 # If the turn completes, add the current turn's output tokens to the session total and reset
                 if server_content.get("turnComplete"):
+                    await client_ws.send_json({"turnComplete": True})
                     session_tokens["output"] += current_turn_output
                     current_turn_output = 0
 

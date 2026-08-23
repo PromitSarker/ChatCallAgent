@@ -52,26 +52,14 @@ export class AudioQueue {
             // Check if we have enough audio buffered to start safely without stuttering
             const bufferedDuration = this.queue.reduce((acc, buffer) => acc + buffer.duration, 0);
             
-            // Jitter buffer threshold: strictly 400ms
-            if (bufferedDuration < 0.4) {
-                // Not enough buffer yet. We wait for the next chunk.
-                // Safety fallback: force start after 300ms if we didn't reach the threshold
-                if (!this.bufferTimeout) {
-                    this.bufferTimeout = setTimeout(() => {
-                        this.bufferTimeout = null;
-                        if (!this.isPlaying && this.queue.length > 0) {
-                            this.startPlayback();
-                        }
-                    }, 200);
-                }
+            // Jitter buffer threshold: strictly 500ms
+            if (bufferedDuration < 0.5) {
+                // Not enough buffer yet. We wait indefinitely for the next chunk,
+                // or until flush() is called when the turn completes.
                 return;
             }
             
-            // We reached the threshold! Clear the fallback timeout and start playing.
-            if (this.bufferTimeout) {
-                clearTimeout(this.bufferTimeout);
-                this.bufferTimeout = null;
-            }
+            // We reached the threshold! Start playing.
             this.startPlayback();
             return;
         }
@@ -79,9 +67,16 @@ export class AudioQueue {
         this.scheduleQueuedBuffers();
     }
 
+    flush() {
+        // Force start playback immediately if we have audio waiting (e.g. at the end of a short turn)
+        if (!this.isPlaying && this.queue.length > 0) {
+            this.startPlayback();
+        }
+    }
+
     startPlayback() {
         this.isPlaying = true;
-        this.nextStartTime = this.audioContext.currentTime + 0.05; // tiny safety margin
+        this.nextStartTime = this.audioContext.currentTime + 0.1; // 100ms safety margin for hardware wakeup
         this.scheduleQueuedBuffers();
     }
 
