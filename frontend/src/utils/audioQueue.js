@@ -52,10 +52,10 @@ export class AudioQueue {
             // Check if we have enough audio buffered to start safely without stuttering
             const bufferedDuration = this.queue.reduce((acc, buffer) => acc + buffer.duration, 0);
             
-            // Jitter buffer threshold: 0.3 seconds (300ms) or 5 chunks
-            if (bufferedDuration < 0.3 && this.queue.length < 5) {
+            // Jitter buffer threshold: strictly 400ms
+            if (bufferedDuration < 0.4) {
                 // Not enough buffer yet. We wait for the next chunk.
-                // Safety fallback: force start after 200ms if we didn't reach the threshold
+                // Safety fallback: force start after 300ms if we didn't reach the threshold
                 if (!this.bufferTimeout) {
                     this.bufferTimeout = setTimeout(() => {
                         this.bufferTimeout = null;

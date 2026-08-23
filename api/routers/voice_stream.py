@@ -136,6 +136,10 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
             setup_response = await gemini_ws.recv()
             print("Setup response:", setup_response)
             
+            # Wait for 4 seconds (approx 2 rings) to give headroom before AI starts speaking
+            print("Waiting for 4 seconds before sending initial greeting...")
+            await asyncio.sleep(4.0)
+            
             # Trigger initial greeting
             initial_greeting_message = {
                 "clientContent": {
