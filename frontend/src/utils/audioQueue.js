@@ -1,8 +1,8 @@
 // audioQueue.js
 
 export class AudioQueue {
-    constructor(sampleRate = 24000) {
-        this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
+    constructor(context) {
+        this.audioContext = context;
         this.queue = [];
         this.isPlaying = false;
         this.scheduledSources = [];

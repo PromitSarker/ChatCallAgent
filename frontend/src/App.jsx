@@ -52,7 +52,6 @@ function App() {
   
   // Ringing effect refs
   const ringIntervalRef = useRef(null);
-  const ringAudioContextRef = useRef(null);
   const hasAIPickedUpRef = useRef(false);
 
   useEffect(() => {
@@ -178,13 +177,10 @@ function App() {
     }
   };
 
-  const startRinging = () => {
+  const startRinging = (ctx) => {
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      ringAudioContextRef.current = ctx;
-      
       const playRing = () => {
-        if (!ringAudioContextRef.current || ringAudioContextRef.current.state === 'closed') return;
+        if (!ctx || ctx.state === 'closed') return;
         const osc1 = ctx.createOscillator();
         const osc2 = ctx.createOscillator();
         const gainNode = ctx.createGain();
@@ -221,10 +217,6 @@ function App() {
       clearInterval(ringIntervalRef.current);
       ringIntervalRef.current = null;
     }
-    if (ringAudioContextRef.current) {
-      ringAudioContextRef.current.close().catch(e => console.warn(e));
-      ringAudioContextRef.current = null;
-    }
   };
 
   const startCall = async () => {
@@ -240,10 +232,17 @@ function App() {
         }
       });
       mediaStreamRef.current = stream;
-      startRinging();
+      
+      // Create a SINGLE unified AudioContext for the entire session (16kHz)
+      // This prevents Windows/Chrome from constantly switching hardware sample rates,
+      // which causes severe pitch shifting ("chipmunk" or "Darth Vader" effects).
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      audioContextRef.current = audioContext;
 
-      // 2. Initialize Audio Queue (for playback)
-      const audioQueue = new AudioQueue(24000);
+      startRinging(audioContext);
+
+      // 2. Initialize Audio Queue (for playback) using the unified context
+      const audioQueue = new AudioQueue(audioContext);
       await audioQueue.init();
       audioQueueRef.current = audioQueue;
 
@@ -298,8 +297,6 @@ function App() {
       };
 
       // 4. Record and send audio
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-      audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
       
       // ScriptProcessor is deprecated but works everywhere. AudioWorklet is better for production.
