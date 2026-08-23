@@ -3,7 +3,8 @@ from agent.tools import (
 	search_knowledge_base,
 	save_collected_information,
 	send_verification_email,
-	write_to_chat
+	write_to_chat,
+	end_call
 )
 
 # Map function names to the actual implementations
@@ -13,6 +14,7 @@ LIVE_TOOLS_MAP = {
 	"save_collected_information": save_collected_information.invoke,
 	"send_verification_email": send_verification_email.invoke,
 	"write_to_chat": write_to_chat.invoke,
+	"end_call": end_call.invoke,
 }
 
 # Declarations formatted for Gemini's Multimodal Live API
@@ -85,6 +87,14 @@ LIVE_TOOL_DECLARATIONS = [
 				}
 			},
 			"required": ["message"]
+		}
+	},
+	{
+		"name": "end_call",
+		"description": "End the current voice call. Use this when the conversation has naturally concluded or when the user explicitly asks to hang up or end the call. ALWAYS ask for confirmation before calling this tool.",
+		"parameters": {
+			"type": "OBJECT",
+			"properties": {}
 		}
 	}
 ]

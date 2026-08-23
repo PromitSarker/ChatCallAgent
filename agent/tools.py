@@ -132,3 +132,13 @@ def write_to_chat(message: str, session_id: str = "") -> str:
 	# The actual broadcasting logic is handled in proxy_gemini_to_client.
 	# This function just acts as a stub to return success to the LLM.
 	return "Message successfully written to chat."
+
+
+@tool
+def end_call() -> str:
+	"""
+	End the current voice call with the user.
+	
+	Why it's needed: Use this when the conversation has naturally concluded or when the user explicitly asks to hang up or end the call. ALWAYS ask for confirmation before calling this tool.
+	"""
+	return "Call ended successfully."

@@ -12,7 +12,8 @@ from agent.tools import (
 	escalate,
 	search_knowledge_base,
 	save_collected_information,
-	send_verification_email
+	send_verification_email,
+	end_call
 )
 from api.store import conversation_store
 
@@ -60,7 +61,8 @@ def _get_llm_with_tools() -> Optional[Any]:
 			escalate,
 			search_knowledge_base, 
 			save_collected_information, 
-			send_verification_email
+			send_verification_email,
+			end_call
 		]
 		_LLM_WITH_TOOLS = base.bind_tools(tools)
 		return _LLM_WITH_TOOLS
@@ -137,6 +139,7 @@ WHAT YOU CAN HELP WITH
    2. Account Setup - We will send you an email with a temporary password that you can use to login to rtcom.it.com, our web portal, and browse to see what range of services does your job.
    Do NOT include any other steps (like Onboarding or Go-Live). Do NOT ask how many messages they plan to send each month. Instead you can tell them to browse the website to know about plans suitable for them.
 3. **Login / Verification**: If the user needs to login or verify their identity, ask for their email address and use `send_verification_email` to generate and send a temporary password.
+4. **End Call**: If the user asks to end the call, hang up, or say goodbye, ask for their confirmation before calling the `end_call` tool to disconnect the call.
 
 DATA RULES (non-negotiable)
 - **Service Limitation**: RT Communication offers the following services: Non-Masking SMS, Masking SMS, Flash SMS, Push-Pull SMS, Short Code SMS, Voice Message, OTP SMS, and Election SMS. If a user asks for other services not listed here, politely inform them that we strictly only offer these specific services. If someone asks which services we provide, ALWAYS call the `search_knowledge_base` tool.
@@ -275,6 +278,7 @@ def execute_tool_node(state: AgentState) -> Dict[str, Any]:
 		"search_knowledge_base": search_knowledge_base,
 		"save_collected_information": save_collected_information,
 		"send_verification_email": send_verification_email,
+		"end_call": end_call,
 	}
 
 	new_messages: List[ToolMessage] = []

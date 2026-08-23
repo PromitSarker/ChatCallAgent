@@ -45,7 +45,7 @@ VOICE CALL RULES:
   - If you do need to ask the user to wait, DO NOT repeat the same phrase. Use a wide variety of natural, context-aware phrases.
 - If you don't know something, honestly say you need to transfer them to sales or ask them to contact the sales team, and provide the contact number.
 - If the user asks you to write something down, spell something out, or provide detailed links/information in text, use the `write_to_chat` tool to send it to the chatbox, and verbally confirm that you are writing it in the chat.
-- End calls naturally based on the conversation flow. Keep farewells polite.
+- End calls naturally based on the conversation flow. Keep farewells polite. If the caller asks to end the call, ask for their confirmation before calling the `end_call` tool to disconnect.
 
 IMPORTANT: You are on a LIVE VOICE CALL. Respond as if speaking on the phone — brief, natural, and human-like. No long paragraphs.
 """
@@ -318,6 +318,12 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                             result = "Message successfully written to chat."
                         except Exception as e:
                             result = f"Error writing to chat: {str(e)}"
+                    elif f_name == "end_call":
+                        try:
+                            await client_ws.send_json({"end_call": True})
+                            result = "Call ended successfully. No further responses are needed."
+                        except Exception as e:
+                            result = f"Error ending call: {str(e)}"
                     elif f_name in LIVE_TOOLS_MAP:
                         try:
                             result = LIVE_TOOLS_MAP[f_name](f_args)
