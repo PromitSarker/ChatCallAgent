@@ -136,9 +136,9 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
             setup_response = await gemini_ws.recv()
             print("Setup response:", setup_response)
             
-            # Wait for 4 seconds (approx 2 rings) to give headroom before AI starts speaking
-            print("Waiting for 4 seconds before sending initial greeting...")
-            await asyncio.sleep(4.0)
+            # Wait for 2 seconds (approx 1 ring) to give headroom before asking AI to generate
+            print("Waiting for 2 seconds before sending initial greeting...")
+            await asyncio.sleep(2.0)
             
             # Trigger initial greeting
             initial_greeting_message = {
@@ -241,6 +241,9 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
     """Reads from Gemini and routes audio/text to client, and handles tool calls."""
     response_count = 0
     current_turn_output = 0
+    is_initial_greeting = True
+    initial_greeting_buffer = []
+    
     try:
         while True:
             response_str = await gemini_ws.recv()
@@ -277,7 +280,17 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                     
                 # If the turn completes, add the current turn's output tokens to the session total and reset
                 if server_content.get("turnComplete"):
-                    await client_ws.send_json({"turnComplete": True})
+                    if is_initial_greeting:
+                        # Flush the entire buffered greeting to the client at once
+                        for buffered_msg in initial_greeting_buffer:
+                            await client_ws.send_json(buffered_msg)
+                        
+                        await client_ws.send_json({"turnComplete": True})
+                        is_initial_greeting = False
+                        initial_greeting_buffer.clear()
+                    else:
+                        await client_ws.send_json({"turnComplete": True})
+                        
                     session_tokens["output"] += current_turn_output
                     current_turn_output = 0
 
@@ -287,17 +300,25 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                         # Forward audio back to frontend
                         if "inlineData" in part:
                             # e.g., audio/pcm
-                            await client_ws.send_json({
-                                "audioB64": part["inlineData"]["data"]
-                            })
+                            msg = {"audioB64": part["inlineData"]["data"]}
+                            if is_initial_greeting:
+                                initial_greeting_buffer.append(msg)
+                            else:
+                                await client_ws.send_json(msg)
                         
                         # Forward text and log to DB if present
                         if "text" in part:
                             text_content = part["text"]
-                            await client_ws.send_json({"text": text_content})
+                            msg = {"text": text_content}
+                            
                             # Optionally append to conversation store so it appears in text UI later
-                            msg = ConversationMessage(role="assistant", content=text_content)
-                            conversation_store.append(conversation_id, msg)
+                            db_msg = ConversationMessage(role="assistant", content=text_content)
+                            conversation_store.append(conversation_id, db_msg)
+                            
+                            if is_initial_greeting:
+                                initial_greeting_buffer.append(msg)
+                            else:
+                                await client_ws.send_json(msg)
 
             elif "toolCall" in data:
                 function_calls = data["toolCall"]["functionCalls"]
