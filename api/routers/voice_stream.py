@@ -59,16 +59,6 @@ else:
 
 GEMINI_WS_URL = f"wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key={GEMINI_API_KEY}"
 
-GREETINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "greetings.json")
-
-def load_greetings():
-    try:
-        with open(GREETINGS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Failed to load static greetings: {e}")
-        return None
-
 @router.websocket("/ws/{conversation_id}")
 async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
     await websocket.accept()
@@ -146,35 +136,19 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
             setup_response = await gemini_ws.recv()
             print("Setup response:", setup_response)
             
-            # Send static greeting to the client immediately
-            greetings_data = load_greetings()
-            if greetings_data and current_language in greetings_data:
-                print(f"Sending static greeting for {current_language}")
-                lang_greeting = greetings_data[current_language]
-                await websocket.send_json({
-                    "audioB64": lang_greeting["audioB64"]
-                })
-                await websocket.send_json({
-                    "text": lang_greeting["text"]
-                })
-                # Append greeting to conversation store for UI
-                msg = ConversationMessage(role="assistant", content=lang_greeting["text"])
-                conversation_store.append(conversation_id, msg)
-            else:
-                # Fallback to dynamic if static missing
-                print(f"No static greeting found for {current_language}, falling back to dynamic.")
-                initial_greeting_message = {
-                    "clientContent": {
-                        "turns": [
-                            {
-                                "role": "user",
-                                "parts": [{"text": "Hello! Please greet me to start the call."}]
-                            }
-                        ],
-                        "turnComplete": True
-                    }
+            # Trigger initial greeting
+            initial_greeting_message = {
+                "clientContent": {
+                    "turns": [
+                        {
+                            "role": "user",
+                            "parts": [{"text": "Hello! Please greet me to start the call."}]
+                        }
+                    ],
+                    "turnComplete": True
                 }
-                await gemini_ws.send(json.dumps(initial_greeting_message))
+            }
+            await gemini_ws.send(json.dumps(initial_greeting_message))
 
             # Start proxying
             client_to_gemini_task = asyncio.create_task(proxy_client_to_gemini(websocket, gemini_ws))
