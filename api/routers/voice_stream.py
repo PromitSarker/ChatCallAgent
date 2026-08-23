@@ -279,9 +279,23 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                 # If the turn completes, add the current turn's output tokens to the session total and reset
                 if server_content.get("turnComplete"):
                     if is_initial_greeting:
-                        # Flush the entire buffered greeting to the client at once
+                        # Concatenate all audio bytes into one giant chunk to prevent browser GC stutter
+                        combined_audio = b""
+                        text_msgs = []
+                        
                         for buffered_msg in initial_greeting_buffer:
-                            await client_ws.send_json(buffered_msg)
+                            if "audioB64" in buffered_msg:
+                                combined_audio += base64.b64decode(buffered_msg["audioB64"])
+                            if "text" in buffered_msg:
+                                text_msgs.append(buffered_msg)
+                        
+                        # Flush all text messages first
+                        for msg in text_msgs:
+                            await client_ws.send_json(msg)
+                            
+                        # Send one massive audio chunk
+                        if combined_audio:
+                            await client_ws.send_json({"audioB64": base64.b64encode(combined_audio).decode("utf-8")})
                         
                         await client_ws.send_json({"turnComplete": True})
                         is_initial_greeting = False

@@ -309,6 +309,10 @@ function App() {
       processor.onaudioprocess = (e) => {
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
         
+        // Mute microphone upload during ringing. 
+        // This prevents Gemini from hearing the ringing sound, which causes it to hallucinate or prematurely abort its greeting.
+        if (!hasAIPickedUpRef.current) return;
+        
         const inputData = e.inputBuffer.getChannelData(0);
         // Convert Float32 to Int16 PCM
         const pcm16 = new Int16Array(inputData.length);
