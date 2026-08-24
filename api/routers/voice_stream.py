@@ -324,8 +324,11 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                             msg = {"text": text_content}
                             
                             # Optionally append to conversation store so it appears in text UI later
-                            db_msg = ConversationMessage(role="assistant", content=text_content)
-                            conversation_store.append(conversation_id, db_msg)
+                            try:
+                                db_msg = ConversationMessage(role="assistant", content=text_content)
+                                await run_in_threadpool(conversation_store.append, conversation_id, db_msg)
+                            except Exception as db_err:
+                                print(f"Warning: Failed to save transcript to DB: {db_err}")
                             
                             if is_initial_greeting:
                                 initial_greeting_buffer.append(msg)
@@ -352,8 +355,15 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                         try:
                             message_text = f_args.get("message", "")
                             await client_ws.send_json({"chat_message": message_text})
-                            msg = ConversationMessage(role="assistant", content=message_text)
-                            conversation_store.append(conversation_id, msg)
+                            
+                            # Handle DB storage independently so failures don't cause the LLM to apologize 
+                            # after the user has already seen the message.
+                            try:
+                                msg = ConversationMessage(role="assistant", content=message_text)
+                                await run_in_threadpool(conversation_store.append, conversation_id, msg)
+                            except Exception as db_err:
+                                print(f"Warning: Failed to save chat message to DB: {db_err}")
+                                
                             result = "Message successfully written to chat."
                         except Exception as e:
                             result = f"Error writing to chat: {str(e)}"
