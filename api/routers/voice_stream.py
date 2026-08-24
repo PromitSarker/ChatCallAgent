@@ -244,6 +244,7 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
     
     try:
         while True:
+            should_end_call = False
             response_str = await gemini_ws.recv()
             response_count += 1
             data = json.loads(response_str)
@@ -371,6 +372,7 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                         try:
                             await client_ws.send_json({"end_call": True})
                             result = "Call ended successfully. No further responses are needed."
+                            should_end_call = True
                         except Exception as e:
                             result = f"Error ending call: {str(e)}"
                     elif f_name in LIVE_TOOLS_MAP:
@@ -394,6 +396,10 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                     }
                 }
                 await gemini_ws.send(json.dumps(tool_resp))
+                
+                if should_end_call:
+                    print("Agent requested to end the call. Breaking server loop.")
+                    break
 
     except Exception as e:
         print("gemini_to_client exception:", str(e))
