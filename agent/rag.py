@@ -52,7 +52,7 @@ def delete_document(doc_id: str) -> bool:
 		# ID not found
 		return False
 
-def search_documents(query: str, k: int = 3) -> str:
+def search_documents(query: str, k: int = 5) -> str:
 	"""Searches the vector store and returns a formatted string of results."""
 	if _vectorstore is None:
 		return "Vector store is offline."
