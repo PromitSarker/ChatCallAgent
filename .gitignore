@@ -6,6 +6,6 @@ venv/
 *.db
 *.sqlite3
 chroma_db/
-uploads/
+
 data/*
 !data/greetings.json
