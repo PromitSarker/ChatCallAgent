@@ -63,59 +63,6 @@ def save_collected_information(data: Dict[str, str], session_id: str = "") -> st
 		return f"ERROR: Could not save information: {str(e)}"
 
 
-class SendVerificationEmailInput(BaseModel):
-	email: str
-	session_id: str = "" # Injected by the system, LLM does not need to provide this.
-
-
-@tool(args_schema=SendVerificationEmailInput)
-def send_verification_email(email: str, session_id: str = "") -> str:
-	"""
-	Generate a temporary password (verification code) and send it to the user's email.
-	
-	Why it's needed: When a user provides their email to log in or verify their identity, this tool generates a secure code and emails it to them.
-	"""
-	import random
-	import string
-	import resend
-	from agent.config import RESEND_API_KEY
-	
-	# Generate 6-character random code
-	code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-	
-	# Save to DB (user_auth_codes and collected_data)
-	auth_query = "INSERT INTO user_auth_codes (email, code) VALUES (?, ?)"
-	collected_query = "INSERT INTO collected_data (session_id, key, value) VALUES (?, ?, ?)"
-	
-	try:
-		with get_connection() as conn:
-			conn.execute(auth_query, (email, code))
-			if session_id:
-				conn.execute(collected_query, (session_id, "Temporary Password", code))
-			conn.commit()
-	except Exception as e:
-		return f"ERROR: Could not save verification code: {str(e)}"
-	
-	# Try sending email
-	if RESEND_API_KEY:
-		try:
-			from agent.config import RESEND_FROM_EMAIL
-			resend.api_key = RESEND_API_KEY
-			params = {
-				"from": f"RT Communication <{RESEND_FROM_EMAIL}>",
-				"to": [email],
-				"subject": "RT Communication Verification Code",
-				"text": f"Hello,\n\nYour temporary password is: {code}\n\nIMPORTANT: This is a temporary password, and you need to change it immediately after you log in.\n\nThank you,\nRT Communication"
-			}
-			resend.Emails.send(params)
-			return "Verification code successfully sent to email."
-		except Exception as e:
-			print(f"Failed to send email via Resend: {e}")
-			return f"Code generated ({code}) but failed to send email due to Resend API error."
-	else:
-		print(f"MOCK EMAIL SENT TO {email}: Code is {code}")
-		return "Verification code successfully generated and mock-sent (Resend API key not configured)."
-
 
 class WriteToChatInput(BaseModel):
 	message: str

@@ -13,8 +13,7 @@ SMTP_SERVER = getenv("SMTP_SERVER", "")
 SMTP_PORT = int(getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = getenv("SMTP_USERNAME", "")
 SMTP_PASSWORD = getenv("SMTP_PASSWORD", "")
-RESEND_API_KEY = getenv("RESEND_API_KEY", "")
-RESEND_FROM_EMAIL = getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+
 
 if not GEMINI_MODEL:
     raise RuntimeError("GEMINI_MODEL must be a non-empty string.")

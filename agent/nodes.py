@@ -12,7 +12,6 @@ from agent.tools import (
 	escalate,
 	search_knowledge_base,
 	save_collected_information,
-	send_verification_email,
 	end_call
 )
 from api.store import conversation_store
@@ -61,7 +60,6 @@ def _get_llm_with_tools() -> Optional[Any]:
 			escalate,
 			search_knowledge_base, 
 			save_collected_information, 
-			send_verification_email,
 			end_call
 		]
 		_LLM_WITH_TOOLS = base.bind_tools(tools)
@@ -124,8 +122,7 @@ WHAT YOU CAN HELP WITH
      - Do NOT use the `save_collected_information` tool for Masking/Non-masking SMS signups.
      - After providing the link and email instructions, inform them of the next steps exactly as follows:
        1. Plan & Pricing - You can check our website to find out which plan suits you.
-       2. Account Setup - We will send you an email with a temporary password that you can use to login to rtcom.it.com, our web portal, and browse to see what range of services does your job.
-3. **Login / Verification**: If the user needs to login or verify their identity, ask for their email address and use `send_verification_email` to generate and send a temporary password.
+3. **Login / Verification**: If the user needs to login, instruct them to visit rtcom.it.com directly to log in or register.
 4. **End Call**: If the user asks to end the call, hang up, or say goodbye, ask for their confirmation before calling the `end_call` tool to disconnect the call.
 
 DATA RULES (non-negotiable)
@@ -279,7 +276,6 @@ def execute_tool_node(state: AgentState) -> Dict[str, Any]:
 		"escalate": escalate,
 		"search_knowledge_base": search_knowledge_base,
 		"save_collected_information": save_collected_information,
-		"send_verification_email": send_verification_email,
 		"end_call": end_call,
 	}
 
@@ -290,7 +286,7 @@ def execute_tool_node(state: AgentState) -> Dict[str, Any]:
 		tool_name = tool_call["name"]
 		tool_args = tool_call["args"]
 		
-		if tool_name in ["save_collected_information", "send_verification_email"]:
+		if tool_name in ["save_collected_information"]:
 			tool_args["session_id"] = state.get("conversation_id", "")
 			
 		tool_func = tools_map.get(tool_name)
@@ -362,7 +358,6 @@ RULES:
 3. If collecting user details and documents, ask for all the required missing pieces of information at once based on their chosen service type, rather than step-by-step.
 4. If the tool result indicates all details were successfully saved for Bulk Message Services, inform the user of the next steps exactly as follows:
    - Plan & Pricing - You can check our website to find out which plan suits you.
-   - Account Setup - We will send you an email with a temporary password that you can use to login to rtcom.it.com, our web portal, and browse to see what range of services does your job.
    Do NOT include any other steps like Onboarding or Go-Live. Do NOT ask how many messages they plan to send each month.
 5. STRICTLY ADHERE TO THE DATA RULES: RT Communication offers the following services: Non-Masking SMS, Masking SMS, Flash SMS, Push-Pull SMS, Short Code SMS, Voice Message, OTP SMS, and Election SMS. When responding about any of these services, base your answer strictly on the knowledge base result provided. Never invent details not present in the knowledge base result.
 6. When responding based on knowledge base results, do NOT directly copy and paste the raw text or reveal that you searched a knowledge base. Analyze the provided information, tailor it to the user's question, and provide a short, concise, and conversational answer. If the knowledge base result indicates no information was found, honestly tell the user you don't have that detail right now. Only offer the sales contact (+880 1712-816563 or sales@rtcom.it.com) as an optional next step if they want more help — do NOT automatically redirect them.
