@@ -441,3 +441,26 @@ body {
     padding: 0 16px;
   }
 }
+
+.download-link-card {
+  display: inline-flex;
+  align-items: center;
+  padding: 12px 16px;
+  margin: 12px 0;
+  background-color: var(--white);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.download-link-card:hover {
+  background-color: #f8fafc;
+  border-color: var(--primary-hover);
+  color: var(--primary-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}

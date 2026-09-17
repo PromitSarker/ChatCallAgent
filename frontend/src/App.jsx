@@ -450,7 +450,29 @@ function App() {
                 {msg.role === 'user' ? 'U' : 'RT'}
               </div>
               <div className="message-bubble">
-                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                <ReactMarkdown
+                  components={{
+                    a: ({node, ...props}) => {
+                      if (props.href && props.href.includes('.pdf')) {
+                        return (
+                          <a
+                            {...props}
+                            download
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="download-link-card"
+                          >
+                            <Paperclip size={16} style={{marginRight: '8px', verticalAlign: 'text-bottom'}}/>
+                            {props.children}
+                          </a>
+                        );
+                      }
+                      return <a {...props} target="_blank" rel="noopener noreferrer" />;
+                    }
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
               </div>
             </motion.div>
           ))
