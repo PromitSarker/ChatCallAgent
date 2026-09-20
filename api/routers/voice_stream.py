@@ -47,6 +47,7 @@ VOICE CALL RULES:
 - If you don't know something, honestly say you need to transfer them to sales or ask them to contact the sales team, and provide the contact number.
 - If the user asks you to write something down, spell something out, or provide detailed links/information in text, use the `write_to_chat` tool to send it to the chatbox, and verbally confirm that you are writing it in the chat.
 - If the user explicitly confirms they want to buy Masking SMS or Non-masking SMS, you MUST use the `write_to_chat` tool to send the application form link (`[Download RT Communication Form](/uploads/RT_Communication_Form.pdf)`) and the instruction to email it to `sales@rtcom.bd` into the chatbox. Then verbally tell the user you have sent the form to their chatbox and instruct them to fill it out and email it to sales.
+- If the user agrees to receive the company profile, you MUST use the `write_to_chat` tool to send the profile links. The message text must be EXACTLY: "অবশ্যই! এখানে আমাদের কোম্পানির প্রোফাইল উভয় ভাষায় দেওয়া হলো:\n\n[🇧🇩 RT Communication প্রোফাইল (বাংলা)](/uploads/RT%20Profile%20Bangla.pdf)\n\n[🇬🇧 RT Communication Profile (English)](/uploads/RT%20Profile%20ENG.pdf)". Verbally tell the user you have sent the profile to their chatbox.
 - End calls naturally based on the conversation flow. Keep farewells polite. If the caller asks to end the call, ask for their confirmation before calling the `end_call` tool to disconnect.
 
 IMPORTANT: You are on a LIVE VOICE CALL. Respond as if speaking on the phone — brief, natural, and human-like. No long paragraphs.
@@ -81,7 +82,7 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
     language_configs = {
         "Bengali": {
             "code": "bn-BD",
-            "greeting": "আসসালামুআলাইকুম! আরটি কমিউনিকেশনে কল করার জন্য ধন্যবাদ। কিভাবে আপনাকে সাহায্য করতে পারি?",
+            "greeting": "RT Communication-এ আপনাকে স্বাগতম। আপনাকে কীভাবে সাহায্য করতে পারি? আমি কি আমাদের কোম্পানির প্রোফাইলটি আপনার সাথে শেয়ার করতে পারি?",
             "voice": "Leda" # Just use default or try to rely on what works
         },
         "English": {
