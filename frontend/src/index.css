@@ -443,10 +443,10 @@ body {
 }
 
 .download-link-card {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 18px 12px 14px;
+  padding: 12px 16px;
   margin: 8px 0;
   background: var(--white);
   border: 1px solid var(--border-color);
@@ -458,21 +458,21 @@ body {
   font-size: 0.9rem;
   box-shadow: var(--shadow-sm);
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-  max-width: 320px;
+  max-width: 400px;
   width: 100%;
-  position: relative;
   overflow: hidden;
+  line-height: 1.4;
 }
 
 .download-link-card::after {
   content: '↓ Download';
-  position: absolute;
-  right: 14px;
-  font-size: 0.72rem;
+  margin-left: auto;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--primary-color);
   letter-spacing: 0.03em;
   opacity: 0.75;
+  white-space: nowrap;
 }
 
 .download-link-card svg {
