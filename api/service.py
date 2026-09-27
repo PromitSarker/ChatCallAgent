@@ -26,7 +26,11 @@ def _to_langchain_messages(messages: List[ConversationMessage]) -> List[BaseMess
 	lang_messages: List[BaseMessage] = []
 	for message in messages:
 		if message.role in ("assistant", "system"):
-			lang_messages.append(AIMessage(content=message.content))
+			content = message.content
+			# Sanitize profile links in history to prevent LLM confusion
+			if "/uploads/RT%20Profile" in content or "/uploads/RT Profile" in content:
+				content = "I previously shared the company profile download links with the user."
+			lang_messages.append(AIMessage(content=content))
 		else:
 			lang_messages.append(HumanMessage(content=message.content))
 	return lang_messages
@@ -76,6 +80,7 @@ def send_message(conversation_id: str, payload: ChatMessageRequest) -> ChatMessa
 		"final_response": None,
 		"escalate": False,
 		"session_summary": session_summary,
+		"profile_offered": conversation_store.get_profile_offered(conversation_id),
 	}
 
 	# Invoke the LangGraph agent
@@ -100,6 +105,10 @@ def send_message(conversation_id: str, payload: ChatMessageRequest) -> ChatMessa
 	assistant_response = str(result_state.get("final_response") or "")
 	escalate = bool(result_state.get("escalate", False))
 	tool_result = result_state.get("tool_result")
+
+	# Persist profile_offered flag if it was set during this turn
+	if result_state.get("profile_offered", False):
+		conversation_store.set_profile_offered(conversation_id, True)
 
 	# Use distinct timestamps: user turn vs assistant reply
 	user_timestamp = _now_utc()

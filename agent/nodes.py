@@ -101,20 +101,22 @@ Today's date is {today} ({weekday}).
 
 PERSONALITY & TONE
 - You are warm, professional, and conversational.
-- Always greet the user at the start of a new conversation with this exact message: "RT Communication-এ আপনাকে স্বাগতম। আপনাকে কীভাবে সাহায্য করতে পারি? আমি কি আমাদের কোম্পানির প্রোফাইলটি আপনার সাথে শেয়ার করতে পারি?"
+- Always greet the user at the start of a new conversation with this exact message: "RT Communication-এ আপনাকে স্বাগতম। আপনাকে কীভাবে সাহায্য করতে পারি?"
 - Always acknowledge what the user told you before asking for more.
 - For general questions, ask for missing information naturally. However, when collecting requirements for SMS services, ask for all required documents and details at once.
 - Keep replies concise.
 - Never say "successfully saved" or explicitly mention that you are saving data. Just acknowledge what they said and naturally ask the next question.
 
 PROFILE SHARING
-- If the user responds affirmatively (e.g., "হ্যাঁ", "yes", "sure", "okay", "হ্যা", "জি", "অবশ্যই", or any similar agreement) to the profile sharing question, respond with EXACTLY this (do not alter the links):
+- {profile_instruction}
+- If you offer the profile and the user responds affirmatively (e.g., "হ্যাঁ", "yes", "sure", "okay", "হ্যা", "জি", "অবশ্যই", or any similar agreement), respond with EXACTLY this (do not alter the links):
   "অবশ্যই! এখানে আমাদের কোম্পানির প্রোফাইল উভয় ভাষায় দেওয়া হলো:
 
   [🇧🇩 RT Communication প্রোফাইল (বাংলা)](/uploads/RT%20Profile%20Bangla.pdf)
 
   [🇬🇧 RT Communication Profile (English)](/uploads/RT%20Profile%20ENG.pdf)"
-- If the user declines the profile offer, acknowledge politely and move on to ask how you can help them.
+- If the user declines the profile offer, acknowledge politely and move on.
+- After sharing or offering the profile, NEVER mention the profile again in this conversation.
 
 WHAT YOU CAN HELP WITH
 1. **General Enquiries & Knowledge**: If asked general questions, policies, available services (e.g., "which services do you provide?"), or FAQs about RT Communication (e.g., masking SMS, non-masking SMS, Short Code SMS, pricing, features, eligibility), ALWAYS use the `search_knowledge_base` tool first to find accurate answers. This explicitly includes any question about Short Code SMS — what it is, how it works, pricing, eligibility, or the process — you MUST search the knowledge base and answer from what you find there first, before any mention of contacting sales. Once you receive the knowledge base result, do NOT directly copy and paste the raw text or leak internal JSON/tool results. Never start your reply with "Knowledge base search results:". Analyze the information, tailor the answer to the user's specific question, and provide a short, concise, and conversational response. If no relevant information is found in the knowledge base, do not make anything up. Honestly tell the user you don't have that specific information right now, and offer to connect them to the sales team only if they want further help (+880 1712-816563 or sales@rtcom.it.com). Do NOT automatically redirect to sales; let the user decide. And whenever you mention pricing of short code, also mention if they want us to handle all the hassle for shortcode sms registration, we will take 25000tk as service charge.
@@ -163,13 +165,30 @@ Do NOT escalate for general service questions, pricing questions, or any topic y
 _FUNCTION_TAG_RE = re.compile(r"<function=[^>]+>.*?</function>", re.DOTALL)
 
 
-def _build_system_prompt(session_summary: str = "", language: str = "Bengali") -> str:
+def _build_system_prompt(session_summary: str = "", language: str = "Bengali", profile_offered: bool = False) -> str:
 	"""Return the system prompt with today's real date and optional summary injected."""
 	today = date.today()
+
+	if profile_offered:
+		profile_instruction = (
+			"The company profile has ALREADY been offered or shared in this conversation. "
+			"Do NOT mention, offer, or share the profile again under any circumstances."
+		)
+	else:
+		profile_instruction = (
+			"Do NOT proactively offer the profile in your greeting. Only suggest sharing the "
+			"company profile when you genuinely cannot answer a user's question from the "
+			"knowledge base (i.e., when the knowledge base returns no relevant results for a "
+			"complex or detailed query). In that case, you may say something like: "
+			'"আমার কাছে এই বিষয়ে বিস্তারিত তথ্য নেই। আপনি চাইলে আমি আমাদের কোম্পানির প্রোফাইল '
+			'শেয়ার করতে পারি, যেখানে আরও বিস্তারিত তথ্য পাবেন।"'
+		)
+
 	prompt = _SYSTEM_PROMPT_TEMPLATE.format(
 		today=today.strftime("%Y-%m-%d"),
 		weekday=today.strftime("%A"),
-		language=language
+		language=language,
+		profile_instruction=profile_instruction
 	)
 	
 	if session_summary:
@@ -213,11 +232,12 @@ def call_model_node(state: AgentState) -> Dict[str, Any]:
 		}
 
 	session_summary = state.get("session_summary") or ""
+	profile_offered = state.get("profile_offered", False)
 	
 	from api.admin_store import admin_store
 	current_language = admin_store.get_setting("agent_language", "Bengali")
 	
-	system_prompt = _build_system_prompt(session_summary, current_language)
+	system_prompt = _build_system_prompt(session_summary, current_language, profile_offered)
 	messages = [SystemMessage(content=system_prompt)] + state.get("messages", [])
 
 	try:
@@ -241,6 +261,10 @@ def call_model_node(state: AgentState) -> Dict[str, Any]:
 			"messages": [response],
 			"final_response": _clean_response(raw_content),
 		}
+
+		# Detect if profile was just shared (by checking for the PDF links)
+		if "/uploads/RT%20Profile" in raw_content or "/uploads/RT Profile" in raw_content:
+			updates["profile_offered"] = True
 
 		lowered = updates["final_response"].lower()
 		if any(phrase in lowered for phrase in ["human agent", "talk to a person", "connect you with a human"]):
@@ -352,11 +376,12 @@ def format_response_node(state: AgentState) -> Dict[str, Any]:
 		return {"final_response": str(last_message.content)}
 
 	session_summary = state.get("session_summary") or ""
+	profile_offered = state.get("profile_offered", False)
 	
 	from api.admin_store import admin_store
 	current_language = admin_store.get_setting("agent_language", "Bengali")
 	
-	system_prompt = _build_system_prompt(session_summary, current_language)
+	system_prompt = _build_system_prompt(session_summary, current_language, profile_offered)
 	
 	formatter_prompt = """You have just received the result of an internal system action.
 Your task is to provide a conversational response to the user based on the conversation history.
@@ -381,6 +406,9 @@ RULES:
 			clean_messages.append(SystemMessage(content=f"System Info: {content}"))
 		elif isinstance(m, AIMessage):
 			clean_content = _extract_text(m.content) if m.content else ""
+			# Replace profile PDF links with a simple note to prevent LLM confusion
+			if "/uploads/RT%20Profile" in clean_content or "/uploads/RT Profile" in clean_content:
+				clean_content = "I previously shared the company profile download links with the user."
 			clean_messages.append(AIMessage(content=clean_content.strip() or "Processed action."))
 		else:
 			clean_messages.append(m)

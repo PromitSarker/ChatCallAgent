@@ -16,3 +16,4 @@ class AgentState(TypedDict):
 	final_response: Optional[str]
 	escalate: bool
 	session_summary: Optional[str]
+	profile_offered: bool

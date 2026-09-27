@@ -58,3 +58,9 @@ CREATE TABLE IF NOT EXISTS global_settings (
     setting_value TEXT NOT NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS session_metadata (
+    session_id TEXT PRIMARY KEY,
+    profile_offered BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

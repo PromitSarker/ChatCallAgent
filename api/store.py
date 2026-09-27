@@ -153,4 +153,25 @@ class ConversationStore:
 				cur.execute(query, (session_id, input_tokens, output_tokens, model_name, duration_seconds))
 			conn.commit()
 
+	def get_profile_offered(self, conversation_id: str) -> bool:
+		query = "SELECT profile_offered FROM session_metadata WHERE session_id = %s"
+		with get_connection() as conn:
+			with conn.cursor() as cur:
+				cur.execute(query, (conversation_id,))
+				row = cur.fetchone()
+		if not row:
+			return False
+		return bool(row["profile_offered"])
+
+	def set_profile_offered(self, conversation_id: str, offered: bool) -> None:
+		query = """
+			INSERT INTO session_metadata (session_id, profile_offered)
+			VALUES (%s, %s)
+			ON CONFLICT (session_id) DO UPDATE SET profile_offered = excluded.profile_offered
+		"""
+		with get_connection() as conn:
+			with conn.cursor() as cur:
+				cur.execute(query, (conversation_id, offered))
+			conn.commit()
+
 conversation_store = ConversationStore()
