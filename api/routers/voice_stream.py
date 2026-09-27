@@ -82,7 +82,7 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
     language_configs = {
         "Bengali": {
             "code": "bn-BD",
-            "greeting": "RT Communication-এ আপনাকে স্বাগতম। আপনাকে কীভাবে সাহায্য করতে পারি? আমি কি আমাদের কোম্পানির প্রোফাইলটি আপনার সাথে শেয়ার করতে পারি?",
+            "greeting": "RT Communication-এ আপনাকে স্বাগতম। আপনাকে কীভাবে সাহায্য করতে পারি?",
             "voice": "Leda" # Just use default or try to rely on what works
         },
         "English": {
@@ -104,7 +104,8 @@ async def voice_websocket_endpoint(websocket: WebSocket, conversation_id: str):
     
     config = language_configs.get(current_language, language_configs["Bengali"])
     
-    system_prompt = _build_system_prompt(session_summary, current_language)
+    profile_offered = conversation_store.get_profile_offered(conversation_id)
+    system_prompt = _build_system_prompt(session_summary, current_language, profile_offered)
     full_prompt = system_prompt + "\n" + VOICE_PERSONA_PROMPT.format(language=current_language, greeting=config["greeting"])
 
     try:
