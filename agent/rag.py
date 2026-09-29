@@ -1,4 +1,6 @@
 import os
+import time
+import threading
 from typing import List
 
 from langchain_chroma import Chroma
@@ -9,6 +11,9 @@ from agent.config import GEMINI_API_KEY
 
 # Persist directory for ChromaDB
 CHROMA_PERSIST_DIR = os.path.join(os.path.dirname(__file__), "..", "chroma_db")
+
+_chroma_lock = threading.Lock()
+_bm25_retriever = None
 
 # Initialize embeddings
 try:
@@ -31,6 +36,30 @@ except Exception as e:
         f.write(traceback.format_exc())
     _vectorstore = None
 
+def _refresh_bm25():
+	global _bm25_retriever
+	if _vectorstore is None:
+		return
+	with _chroma_lock:
+		try:
+			all_docs_data = _vectorstore.get()
+		except Exception as e:
+			print(f"Error fetching from Chroma: {e}")
+			return
+
+	if not all_docs_data.get('documents'):
+		_bm25_retriever = None
+		return
+	
+	all_documents = [
+		Document(page_content=doc, metadata=meta) 
+		for doc, meta in zip(all_docs_data['documents'], all_docs_data['metadatas'])
+	]
+	_bm25_retriever = BM25Retriever.from_documents(all_documents)
+
+# Initial BM25 load
+_refresh_bm25()
+
 def add_document(text: str, metadata: dict = None) -> str:
 	"""Adds a document to the Chroma vector store and returns the ID."""
 	if _vectorstore is None:
@@ -39,7 +68,10 @@ def add_document(text: str, metadata: dict = None) -> str:
 	doc_id = str(uuid.uuid4())
 	
 	doc = Document(page_content=text, metadata=metadata or {})
-	_vectorstore.add_documents(documents=[doc], ids=[doc_id])
+	with _chroma_lock:
+		_vectorstore.add_documents(documents=[doc], ids=[doc_id])
+	
+	_refresh_bm25()
 	return doc_id
 
 def delete_document(doc_id: str) -> bool:
@@ -47,7 +79,9 @@ def delete_document(doc_id: str) -> bool:
 	if _vectorstore is None:
 		return False
 	try:
-		_vectorstore.delete(ids=[doc_id])
+		with _chroma_lock:
+			_vectorstore.delete(ids=[doc_id])
+		_refresh_bm25()
 		return True
 	except ValueError:
 		# ID not found
@@ -65,28 +99,35 @@ def search_documents(query: str, k: int = 5) -> str:
 		task_type="retrieval_query"
 	)
 	
-	# We perform manual search for the vector part to keep the 'retrieval_query' embeddings
-	vector_results = _vectorstore.similarity_search_by_vector(
-		query_embeddings.embed_query(query), k=k
-	)
+	# Retry logic for embeddings API
+	vector_results = []
+	for attempt in range(3):
+		try:
+			embedded_query = query_embeddings.embed_query(query)
+			with _chroma_lock:
+				vector_results = _vectorstore.similarity_search_by_vector(embedded_query, k=k)
+			break
+		except Exception as e:
+			print(f"[RAG Search] Embeddings attempt {attempt + 1} failed: {e}")
+			time.sleep(2 ** attempt)
 	
 	# 2. Sparse Retriever (BM25) setup
-	all_docs_data = _vectorstore.get()
-	if not all_docs_data.get('documents'):
-		if not vector_results:
-			return "No relevant information found in the knowledge base."
+	sparse_results = []
+	if _bm25_retriever is not None:
+		_bm25_retriever.k = k
+		try:
+			sparse_results = _bm25_retriever.invoke(query)
+		except Exception as e:
+			print(f"[RAG Search] BM25 invoke failed: {e}")
+	
+	if not vector_results and not sparse_results:
+		return "No relevant information found in the knowledge base."
+	
+	if not sparse_results:
 		final_results = vector_results
+	elif not vector_results:
+		final_results = sparse_results
 	else:
-		all_documents = [
-			Document(page_content=doc, metadata=meta) 
-			for doc, meta in zip(all_docs_data['documents'], all_docs_data['metadatas'])
-		]
-		bm25_retriever = BM25Retriever.from_documents(all_documents)
-		bm25_retriever.k = k
-		
-		# Get BM25 results
-		sparse_results = bm25_retriever.invoke(query)
-		
 		# 3. Manual Reciprocal Rank Fusion (RRF) since we bypass EnsembleRetriever to keep custom embeddings
 		fused_scores = {}
 		for rank, doc in enumerate(sparse_results):
@@ -115,7 +156,8 @@ def list_documents() -> List[dict]:
 	"""Returns all documents from the vector store."""
 	if _vectorstore is None:
 		return []
-	results = _vectorstore.get()
+	with _chroma_lock:
+		results = _vectorstore.get()
 	documents = []
 	
 	if not results or "ids" not in results:
