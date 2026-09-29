@@ -12,6 +12,7 @@ python-dotenv
 python-multipart
 pypdf
 langchain-chroma
+rank_bm25
 google-generativeai
 websockets
 psycopg2-binary
