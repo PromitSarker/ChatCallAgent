@@ -8,6 +8,7 @@ export class AudioQueue {
         this.scheduledSources = [];
         this.nextStartTime = 0;
         this.onPlaybackChange = onPlaybackChange;
+        this.leftoverByte = null;
     }
 
     setPlaying(playing) {
@@ -29,15 +30,33 @@ export class AudioQueue {
         try {
             const binaryString = window.atob(base64String);
             const len = binaryString.length;
-            const bytes = new Uint8Array(len);
+            
+            let totalBytes = len + (this.leftoverByte !== null ? 1 : 0);
+            const bytes = new Uint8Array(totalBytes);
+            
+            let offset = 0;
+            if (this.leftoverByte !== null) {
+                bytes[0] = this.leftoverByte;
+                offset = 1;
+                this.leftoverByte = null;
+            }
+            
             for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
+                bytes[offset + i] = binaryString.charCodeAt(i);
             }
 
             // Gemini audio is 16kHz PCM (or 24kHz). We need to wrap it in a WAV header or convert it to AudioBuffer.
             // Since it's raw 16-bit PCM, we can manually convert the Int16Array to an AudioBuffer.
             
-            const pcm16 = new Int16Array(bytes.buffer);
+            let usableBytes = bytes;
+            if (totalBytes % 2 !== 0) {
+                this.leftoverByte = bytes[totalBytes - 1];
+                usableBytes = new Uint8Array(bytes.buffer, 0, totalBytes - 1);
+            }
+            
+            if (usableBytes.length === 0) return;
+            
+            const pcm16 = new Int16Array(usableBytes.buffer, usableBytes.byteOffset, usableBytes.byteLength / 2);
             const audioBuffer = this.audioContext.createBuffer(1, pcm16.length, 24000); // Gemini Multimodal Live uses 24kHz output
             const channelData = audioBuffer.getChannelData(0);
             
@@ -129,5 +148,6 @@ export class AudioQueue {
         this.queue = [];
         this.setPlaying(false);
         this.nextStartTime = 0;
+        this.leftoverByte = null;
     }
 }

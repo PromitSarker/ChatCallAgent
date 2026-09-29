@@ -381,7 +381,8 @@ async def proxy_gemini_to_client(client_ws: WebSocket, gemini_ws, conversation_i
                             result = f"Error ending call: {str(e)}"
                     elif f_name in LIVE_TOOLS_MAP:
                         try:
-                            result = LIVE_TOOLS_MAP[f_name](f_args)
+                            # Run synchronous tool in threadpool to avoid blocking event loop
+                            result = await run_in_threadpool(LIVE_TOOLS_MAP[f_name], f_args)
                         except Exception as e:
                             result = f"Error: {str(e)}"
                     else:
