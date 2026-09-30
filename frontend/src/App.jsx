@@ -49,11 +49,33 @@ function App() {
   const mediaStreamRef = useRef(null);
   const processorRef = useRef(null);
   const audioQueueRef = useRef(null);
-  
+  const isAgentSpeakingRef = useRef(false);
+  const speakingTimeoutRef = useRef(null);
+  const isInitialGreetingRef = useRef(true);
+
+  // Unified-agent echo suppression pattern:
+  // Hard-mute mic ONLY during the initial greeting (where Safari echo causes a loop),
+  // then allow full barge-in for the rest of the call.
+  const setAgentSpeaking = (isSpeaking) => {
+    if (!isInitialGreetingRef.current) return; // Only apply hard-mute during the initial greeting
+
+    if (isSpeaking) {
+      if (speakingTimeoutRef.current) {
+        clearTimeout(speakingTimeoutRef.current);
+        speakingTimeoutRef.current = null;
+      }
+      isAgentSpeakingRef.current = true;
+    } else {
+      speakingTimeoutRef.current = setTimeout(() => {
+        isAgentSpeakingRef.current = false;
+        isInitialGreetingRef.current = false; // After first greeting ends, allow barge-in forever
+      }, 1000); // 1000ms hang time to clear hardware latency and acoustic tail
+    }
+  };
+
   // Ringing effect refs
   const ringIntervalRef = useRef(null);
   const hasAIPickedUpRef = useRef(false);
-  const isAgentSpeakingRef = useRef(false);
 
   useEffect(() => {
     setConversationId(generateUUID());
@@ -224,6 +246,22 @@ function App() {
     setIsConnecting(true);
     hasAIPickedUpRef.current = false;
     try {
+      // Create a SINGLE unified AudioContext for the entire session (16kHz)
+      // This prevents Windows/Chrome from constantly switching hardware sample rates,
+      // which causes severe pitch shifting ("chipmunk" or "Darth Vader" effects).
+      // FIX 1: Create AudioContext synchronously BEFORE awaiting getUserMedia
+      // This preserves the user gesture required by Safari
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContextClass({ sampleRate: 16000 });
+      audioContextRef.current = audioContext;
+
+      // Force resume immediately while the gesture is active
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+
+      startRinging(audioContext);
+
       // 1. Get Microphone
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -233,18 +271,10 @@ function App() {
         }
       });
       mediaStreamRef.current = stream;
-      
-      // Create a SINGLE unified AudioContext for the entire session (16kHz)
-      // This prevents Windows/Chrome from constantly switching hardware sample rates,
-      // which causes severe pitch shifting ("chipmunk" or "Darth Vader" effects).
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-      audioContextRef.current = audioContext;
-
-      startRinging(audioContext);
 
       // 2. Initialize Audio Queue (for playback) using the unified context
       const audioQueue = new AudioQueue(audioContext, (isSpeaking) => {
-        isAgentSpeakingRef.current = isSpeaking;
+        setAgentSpeaking(isSpeaking);
       });
       await audioQueue.init();
       audioQueueRef.current = audioQueue;
@@ -309,18 +339,28 @@ function App() {
       const processor = audioContext.createScriptProcessor(1024, 1, 1);
       processorRef.current = processor;
 
+      // FIX 2: Store strong reference on window to prevent Safari GC bug
+      window.__safari_audio_processor_hack = processor;
+
       processor.onaudioprocess = (e) => {
+        // FIX 3: Write imperceptible noise to prevent Safari's silence optimization suspension
+        const outputData = e.outputBuffer.getChannelData(0);
+        for (let i = 0; i < outputData.length; i++) {
+          outputData[i] = 1e-7; // Tiny non-zero value
+        }
+
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
         
         // Mute microphone upload during ringing. 
         // This prevents Gemini from hearing the ringing sound, which causes it to hallucinate or prematurely abort its greeting.
         if (!hasAIPickedUpRef.current) return;
         
-        // Mute microphone upload while the agent is actively playing audio.
-        // This prevents echo and disables user "barge-in" (interruption) while the AI is talking.
+        // Echo suppression: mute mic only during the initial greeting.
+        // After the first greeting finishes, barge-in is allowed for the rest of the call.
         if (isAgentSpeakingRef.current) return;
 
         const inputData = e.inputBuffer.getChannelData(0);
+
         // Convert Float32 to Int16 PCM
         const pcm16 = new Int16Array(inputData.length);
         for (let i = 0; i < inputData.length; i++) {
@@ -353,6 +393,13 @@ function App() {
     stopRinging();
     setIsConnecting(false);
     setIsCallActive(false);
+
+    if (speakingTimeoutRef.current) {
+      clearTimeout(speakingTimeoutRef.current);
+      speakingTimeoutRef.current = null;
+    }
+    isAgentSpeakingRef.current = false;
+    isInitialGreetingRef.current = true; // Reset for next call
     
     if (wsRef.current) {
       wsRef.current.close();
@@ -361,6 +408,8 @@ function App() {
     if (processorRef.current) {
       processorRef.current.disconnect();
       processorRef.current = null;
+      // Clean up Safari GC hack
+      window.__safari_audio_processor_hack = null;
     }
     if (audioContextRef.current) {
       audioContextRef.current.close();
