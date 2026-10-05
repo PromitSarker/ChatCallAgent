@@ -16,7 +16,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "3000:3000"
+      - "3103:3000"
     restart: unless-stopped
     depends_on:
       - api
